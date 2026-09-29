@@ -7,14 +7,17 @@ import { Pause, Play, RotateCcw, Moon, Sun } from 'lucide-react';
 import { Menu, MenuBar } from './shell/MenuBar';
 import { SHORTCUTS, ShortcutId, withShortcut } from './shell/shortcuts';
 
-export type AppPage = 'simulation' | 'benchmark' | 'webcam' | 'reports' | 'python';
+// Change line 10 from:
+// export type AppPage = 'simulation' | 'benchmark' | 'webcam' | 'reports' | 'python';
+// to:
+export type AppPage = 'simulation' | 'benchmark' | 'webcam' | 'reports';
 
+// Change lines 12–18 from:
 export const PAGES: ReadonlyArray<{ id: AppPage; label: string; shortcut: ShortcutId }> = [
   { id: 'simulation', label: 'Simulation', shortcut: 'modeSimulation' },
   { id: 'benchmark', label: 'Benchmark video', shortcut: 'modeBenchmark' },
   { id: 'webcam', label: 'Webcam', shortcut: 'modeWebcam' },
   { id: 'reports', label: 'Reports', shortcut: 'modeReports' },
-  { id: 'python', label: 'Python engine', shortcut: 'modeReports' },
 ];
 
 interface HeaderProps {

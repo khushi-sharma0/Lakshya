@@ -37,7 +37,6 @@ import { SimulationPage } from './pages/SimulationPage';
 import { BenchmarkModeView } from './components/BenchmarkModeView';
 import { WebcamModeView } from './components/WebcamModeView';
 import { ReportsPage } from './pages/ReportsPage';
-import { PythonEnginePage } from './pages/PythonEnginePage';
 import { ReportModal } from './components/ReportModal';
 import { Menu } from './components/shell/MenuBar';
 import { StatusBar } from './components/shell/StatusBar';
@@ -1034,7 +1033,6 @@ export default function App() {
         { type: 'item', label: 'Benchmark video mode', shortcut: 'Ctrl+2', checked: currentPage === 'benchmark', onSelect: () => setCurrentPage('benchmark') },
         { type: 'item', label: 'Webcam mode', shortcut: 'Ctrl+3', checked: currentPage === 'webcam', onSelect: () => setCurrentPage('webcam') },
         { type: 'item', label: 'Reports & suite', shortcut: 'Ctrl+4', checked: currentPage === 'reports', onSelect: () => setCurrentPage('reports') },
-        { type: 'item', label: 'Python engine', checked: currentPage === 'python', onSelect: () => setCurrentPage('python') },
         { type: 'separator' },
         { type: 'item', label: 'Toggle monochrome sensor', shortcut: 'M', checked: cameraConfig.isMonochrome, onSelect: () => setCameraConfig((c) => ({ ...c, isMonochrome: !c.isMonochrome })) },
         { type: 'item', label: isDark ? 'Light theme' : 'Dark theme', shortcut: 'T', onSelect: () => setIsDark(!isDark) },
@@ -1344,12 +1342,7 @@ export default function App() {
             />
           </div>
         )}
-
-        {currentPage === 'python' && (
-          <div className="flex-1 overflow-y-auto p-4 max-w-[1600px] w-full mx-auto">
-            <PythonEnginePage frameLogs={loggerRef.current.frameLogs} />
-          </div>
-        )}
+        
       </main>
 
       <StatusBar
