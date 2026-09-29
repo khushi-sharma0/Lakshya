@@ -49,6 +49,11 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="shrink-0">
       <div className="flex h-7 items-stretch border-b border-line bg-panel">
         <div className="flex items-center gap-1.5 pl-3 pr-2">
+          <img 
+            src="/logo.jpeg" 
+            alt="Lakshya Logo" 
+            className="h-5 w-5 object-contain rounded"
+          />
           <span className="text-[13px] font-semibold text-fg">Lakshya</span>
           <span className="font-mono-tabular text-[11px] text-dim">2.6</span>
         </div>

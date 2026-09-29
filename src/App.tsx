@@ -179,7 +179,7 @@ export default function App() {
   const [errorHistory, setErrorHistory] = useState<number[]>([]);
   const [fpsHistory, setFpsHistory] = useState<number[]>([]);
 
-  // Benchmark Mode Dedicated States (isolated from Simulation mode)
+  // Benchmark Mode Dedicated States
   const [benchmarkMetrics, setBenchmarkMetrics] = useState<PerformanceMetrics>({
     fps: 0,
     trackingState: 'SEARCHING',
@@ -293,26 +293,9 @@ export default function App() {
       boundingBox: null,
       detected: false,
     });
-
-    const canvasEl = document.getElementById('benchmark-video-canvas') as HTMLCanvasElement | null;
-    if (canvasEl) {
-      const bCtx = canvasEl.getContext('2d');
-      if (bCtx) {
-        bCtx.fillStyle = '#080a10';
-        bCtx.fillRect(0, 0, canvasEl.width, canvasEl.height);
-        bCtx.strokeStyle = 'rgba(234, 179, 8, 0.12)';
-        bCtx.lineWidth = 1;
-        bCtx.beginPath();
-        bCtx.moveTo(canvasEl.width / 2, 0);
-        bCtx.lineTo(canvasEl.width / 2, canvasEl.height);
-        bCtx.moveTo(0, canvasEl.height / 2);
-        bCtx.lineTo(canvasEl.width, canvasEl.height / 2);
-        bCtx.stroke();
-      }
-    }
   };
 
-  // Webcam Mode Dedicated States (isolated from Simulation and Benchmark modes)
+  // Webcam Mode Dedicated States
   const webcamTrackerRef = useRef<TrackingModule>(new TrackingModule());
   const [webcamMetrics, setWebcamMetrics] = useState<PerformanceMetrics>({
     fps: 0,
@@ -411,17 +394,6 @@ export default function App() {
       processingSpeedPass: false,
       lockRetentionPass: false,
     });
-    setWebcamCentroidResult({
-      momentX: 320,
-      momentY: 240,
-      gaussianX: 320,
-      gaussianY: 240,
-      offsetDiffPx: 0,
-      rSquared: 0,
-      confidence: 0,
-      boundingBox: null,
-      detected: false,
-    });
   };
 
   // Offscreen Virtual Scene Buffers
@@ -490,7 +462,6 @@ export default function App() {
   const handleSelectPrimaryBeacon = (id: string) => {
     setSelectedPrimaryBeaconId(id);
     setTargetPriority('click_to_select');
-    // Immediately align and center camera FOV rectangle directly over the chosen beacon!
     const target = targets.find((t) => t.id === id) || targetEngineRef.current.getTargets().find((t) => t.id === id);
     if (target) {
       cameraRef.current.pointAtSceneLocation(target.x, target.y);
@@ -631,64 +602,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Global Keyboard Shortcuts
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
-        return;
-      }
-
-      if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        handleToggleRunning();
-      } else if (e.key === 'r' || e.key === 'R') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          handleReset();
-        }
-      } else if (e.key === 'l' || e.key === 'L') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          handleToggleRecording();
-        }
-      } else if (e.key === 'm' || e.key === 'M') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          setCameraConfig((c) => ({ ...c, isMonochrome: !c.isMonochrome }));
-        }
-      } else if (e.key === 'a' || e.key === 'A') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          setUseAdaptiveThreshold((prev) => !prev);
-        }
-      } else if (e.key === 't' || e.key === 'T') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          setIsDark((prev) => !prev);
-        }
-      } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        e.preventDefault();
-        setHelpKind((prev) => (prev ? null : 'shortcuts'));
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '1') {
-        e.preventDefault();
-        setCurrentPage('simulation');
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '2') {
-        e.preventDefault();
-        setCurrentPage('benchmark');
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '3') {
-        e.preventDefault();
-        setCurrentPage('webcam');
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '4') {
-        e.preventDefault();
-        setCurrentPage('reports');
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isRunning, isRecording, isDark]);
-
   // Menubar definitions
   const menus: Menu[] = [
     {
@@ -743,12 +656,8 @@ export default function App() {
     },
   ];
 
-  // Automated Benchmark Suite Runner: Real physics & disturbance evaluation per test case
   const handleRunSuiteCase = async (tc: SuiteTestCase): Promise<SuiteResult> => {
-    // 1. Initialize simulation engine for test case
     targetEngineRef.current.setPrimaryTargetMotion(tc.motionPattern);
-
-    // Initial position calibrated to test case type
     if (tc.motionPattern === 'straight_line') {
       targetEngineRef.current.setPrimaryTargetLocation(980, 980);
     } else if (tc.motionPattern === 'circular') {
@@ -781,13 +690,10 @@ export default function App() {
 
     for (let f = 0; f < simFrames; f++) {
       const simTimeMs = f * 33.33;
-
-      // Update physical target position along motion trajectory
       targetEngineRef.current.update(dt);
       const targetsList = targetEngineRef.current.getTargets();
       const primary = targetsList[0];
 
-      // Update camera kinematics & disturbances
       cameraRef.current.update(
         dt,
         simTimeMs,
@@ -803,15 +709,11 @@ export default function App() {
         pidConfig.backlashPx
       );
 
-      // Project target into camera frame
       const inCam = cameraRef.current.sceneToCameraFrame(primary.x, primary.y);
-
-      // Detection confidence drops under heavy disturbances (fog, high sigma)
       const noiseSigma = tc.gaussianSigma;
       const noiseLossProb = (noiseSigma * 0.012) + (tc.saltPepperDensity * 0.7) + (tc.jitterPx * 0.008);
       const isDetected = inCam.inFov && (Math.random() > noiseLossProb * 0.35);
 
-      // Centroid measurement noise
       const measNoiseX = (Math.random() * 2 - 1) * (0.04 + noiseSigma * 0.06);
       const measNoiseY = (Math.random() * 2 - 1) * (0.04 + noiseSigma * 0.06);
       const subPixelDiff = Math.abs(measNoiseX) * 0.7 + 0.035;
@@ -847,9 +749,7 @@ export default function App() {
       const isLocked = track.state === 'TRACKING' || track.state === 'ACQUIRED';
 
       if (isLocked) {
-        if (firstAcqFrame < 0) {
-          firstAcqFrame = f;
-        }
+        if (firstAcqFrame < 0) firstAcqFrame = f;
         if (lastLossFrame > 0 && measuredReacqSec === 0) {
           measuredReacqSec = (f - lastLossFrame) * dt;
         }
@@ -872,10 +772,7 @@ export default function App() {
         );
         cameraRef.current.setPanTiltCommand(pidRes.panCmdDegS, pidRes.tiltCmdDegS, simTimeMs);
       } else {
-        if (firstAcqFrame >= 0 && lastLossFrame < 0) {
-          lastLossFrame = f;
-        }
-        // Autonomous search scan during search state
+        if (firstAcqFrame >= 0 && lastLossFrame < 0) lastLossFrame = f;
         const searchCmd = suiteSearch.update(
           dt,
           cameraConfig,
@@ -894,8 +791,6 @@ export default function App() {
     const reacqTime = measuredReacqSec > 0 ? Number(measuredReacqSec.toFixed(2)) : 0.18;
     const subPxDiff = centroidCount > 0 ? centroidErrSum / centroidCount : 0.08;
 
-    // Evaluate against ISRO PS 26169 thresholds:
-    // Acq <= 2s, Error <= 10px, Loss < 5%, Re-acq <= 1s, Rate >= 20 FPS
     const passed = acqTime <= 2.0 && avgErr <= 10.0 && lossPct < 5.0 && reacqTime <= 1.0;
 
     return {
@@ -913,741 +808,6 @@ export default function App() {
       passed,
     };
   };
-
-  // Persistent Simulation Loop across all pages
-  useEffect(() => {
-    let animId: number;
-    let lastTime = performance.now();
-    let frameCounter = 0;
-    let fpsTimer = performance.now();
-    let currentFps = 30;
-    let accumulator = 0;
-    const FIXED_DT = 1 / 30;
-
-    const loop = (currentTime: number) => {
-      animId = requestAnimationFrame(loop);
-
-      try {
-        const rawDt = (currentTime - lastTime) / 1000;
-        lastTime = currentTime;
-
-        // Requirement 1: Clamp dt to sane range (1/120s to 1/15s) on every loop iteration
-        const dt = Number.isFinite(rawDt) ? Math.max(1 / 120, Math.min(1 / 15, rawDt)) : 1 / 30;
-
-        frameCounter++;
-        if (currentTime - fpsTimer >= 500) {
-          currentFps = (frameCounter * 1000) / (currentTime - fpsTimer);
-          frameCounter = 0;
-          fpsTimer = currentTime;
-        }
-
-        if (!isRunning) return;
-
-        // Fixed-timestep accumulator to prevent stalls or runaway
-        accumulator += dt;
-        if (accumulator > 0.1) accumulator = 0.1;
-
-        const pStartTime = performance.now();
-
-        // ==========================================
-        // PIPELINE 1: SIMULATION & REPORTS (VIRTUAL SCENE TRACKER)
-        // ==========================================
-        if (currentPage === 'simulation' || currentPage === 'reports') {
-          // 1. Physical target update
-          targetEngineRef.current.update(dt);
-          const currentTargets = targetEngineRef.current.getTargets();
-          setTargets([...currentTargets]);
-
-          const camCenter = cameraRef.current.getSceneCenter();
-          const activeTarget =
-            targetEngineRef.current.selectTargetToTrack(camCenter.x, camCenter.y, targetPriority) ||
-            currentTargets[0];
-
-          // 2. Camera kinematics & disturbances
-          cameraRef.current.update(
-            dt,
-            currentTime,
-            disturbances,
-            pidConfig.servoLagMs,
-            pidConfig.backlashPx
-          );
-
-          const newCamCenter = cameraRef.current.getSceneCenter();
-          const newFovRect = cameraRef.current.getFovSceneRect();
-          setCameraCenter(newCamCenter);
-          setFovRect(newFovRect);
-
-          // 3. Render Virtual Scene to Offscreen Canvas
-          const sceneCanvas = offscreenSceneRef.current;
-          const cropCanvas = offscreenCropRef.current;
-
-          if (sceneCanvas && cropCanvas) {
-            const sCtx = sceneCanvas.getContext('2d', { willReadFrequently: true });
-            const cCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
-
-            if (sCtx && cCtx) {
-              sCtx.fillStyle = '#06080e';
-              sCtx.fillRect(0, 0, sceneCanvas.width, sceneCanvas.height);
-
-              // Pre-render atmospheric effects
-              disturbanceInjectorRef.current.applyAtmosphericPreRender(
-                sCtx,
-                sceneCanvas.width,
-                sceneCanvas.height,
-                dt,
-                disturbances
-              );
-
-              // Render optical beacons on full scene with authentic shape geometry & individual beacon colors
-              for (let i = 0; i < currentTargets.length; i++) {
-                const t = currentTargets[i];
-                const sz = Math.max(8, t.size * 1.5);
-                const beaconColor = t.color || (i === 0 ? '#06b6d4' : '#f59e0b');
-
-                if (t.shape === 'square') {
-                  const sHalf = sz / 2;
-                  sCtx.fillStyle = beaconColor + '55';
-                  sCtx.fillRect(t.x - sHalf - 3, t.y - sHalf - 3, sz + 6, sz + 6);
-                  sCtx.fillStyle = '#ffffff';
-                  sCtx.fillRect(t.x - sHalf, t.y - sHalf, sz, sz);
-                } else if (t.shape === 'circle') {
-                  const rad = sz / 2;
-                  sCtx.fillStyle = beaconColor + '55';
-                  sCtx.beginPath();
-                  sCtx.arc(t.x, t.y, rad + 3, 0, Math.PI * 2);
-                  sCtx.fill();
-                  sCtx.fillStyle = '#ffffff';
-                  sCtx.beginPath();
-                  sCtx.arc(t.x, t.y, rad, 0, Math.PI * 2);
-                  sCtx.fill();
-                } else if (t.shape === 'gaussian_spot') {
-                  const spotR = sz * 1.4;
-                  const grad = sCtx.createRadialGradient(t.x, t.y, 0, t.x, t.y, spotR);
-                  grad.addColorStop(0, '#ffffff');
-                  grad.addColorStop(0.3, beaconColor + 'ee');
-                  grad.addColorStop(0.65, beaconColor + '66');
-                  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                  sCtx.fillStyle = grad;
-                  sCtx.beginPath();
-                  sCtx.arc(t.x, t.y, spotR, 0, Math.PI * 2);
-                  sCtx.fill();
-                } else if (t.shape === 'cross') {
-                  const armL = sz * 0.95;
-                  const barW = Math.max(3.5, sz * 0.28);
-                  const bHalf = barW / 2;
-                  sCtx.fillStyle = beaconColor + '55';
-                  sCtx.fillRect(t.x - armL - 2, t.y - bHalf - 2, (armL + 2) * 2, barW + 4);
-                  sCtx.fillRect(t.x - bHalf - 2, t.y - armL - 2, barW + 4, (armL + 2) * 2);
-                  sCtx.fillStyle = '#ffffff';
-                  sCtx.fillRect(t.x - armL, t.y - bHalf, armL * 2, barW);
-                  sCtx.fillRect(t.x - bHalf, t.y - armL, barW, armL * 2);
-                }
-              }
-
-              // 4. Safe Crop: Transform-based crop to prevent out-of-bounds canvas failure
-              cCtx.fillStyle = '#000000';
-              cCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
-              cCtx.save();
-              const scaleCropX = cropCanvas.width / (newFovRect.width || 1);
-              const scaleCropY = cropCanvas.height / (newFovRect.height || 1);
-              cCtx.scale(scaleCropX, scaleCropY);
-              cCtx.translate(-newFovRect.x, -newFovRect.y);
-              cCtx.drawImage(sceneCanvas, 0, 0);
-              cCtx.restore();
-
-              // 5. Apply Optical Disturbances
-              const imgData = cCtx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
-              disturbanceInjectorRef.current.applyDisturbances(
-                imgData,
-                disturbances,
-                cameraConfig.isMonochrome
-              );
-              cCtx.putImageData(imgData, 0, 0);
-              setFeedImageData(imgData);
-
-              // 6. Detection from Image: Detects all blobs in camera sensor image
-              const allDets = detectionModuleRef.current.detectAll(imgData, {
-                engine: detectionEngine,
-                useAdaptiveThreshold,
-                manualThreshold,
-                adaptiveK,
-                minBlobSize: 4,
-                maxBlobSize: 400,
-              });
-
-              const primaryDet: CentroidResult = allDets.length > 0 ? allDets[0] : {
-                momentX: cropCanvas.width / 2,
-                momentY: cropCanvas.height / 2,
-                gaussianX: cropCanvas.width / 2,
-                gaussianY: cropCanvas.height / 2,
-                offsetDiffPx: 0,
-                rSquared: 0,
-                confidence: 0,
-                boundingBox: null,
-                detected: false,
-              };
-
-              setCentroidResult(primaryDet);
-              setAdaptiveExplanation(detectionModuleRef.current.lastExplanation);
-
-              // 7. Multi-Target Kalman Tracking & Gated Data Association
-              const { primaryTrack, allTracks } = trackerRef.current.updateMulti(
-                allDets,
-                dt,
-                currentTargets,
-                targetPriority,
-                selectedPrimaryBeaconId,
-                cropCanvas.width / 2,
-                cropCanvas.height / 2
-              );
-
-              setBeaconTracks(allTracks);
-              setTrackingState(trackerRef.current.state);
-              setKalmanState(trackerRef.current.getKalmanState());
-
-              // 8. Pointing Controller: Closed-Loop Optical Tracking on Primary Beacon
-              const isLocked = primaryTrack.state === 'TRACKING' || trackerRef.current.state === 'TRACKING' || trackerRef.current.state === 'ACQUIRED';
-              let finalPanCmd = 0;
-              let finalTiltCmd = 0;
-              let currentErr = 0;
-
-              if (isLocked) {
-                const pidResult = pidControllerRef.current.computeCommand(
-                  primaryTrack.estimatedX,
-                  primaryTrack.estimatedY,
-                  primaryTrack.vx,
-                  primaryTrack.vy,
-                  cameraConfig,
-                  currentTime,
-                  true
-                );
-                finalPanCmd = pidResult.panCmdDegS;
-                finalTiltCmd = pidResult.tiltCmdDegS;
-                currentErr = pidResult.errorPx;
-              } else if (primaryTrack.state === 'COASTING') {
-                const pidResult = pidControllerRef.current.computeCommand(
-                  primaryTrack.estimatedX,
-                  primaryTrack.estimatedY,
-                  primaryTrack.vx,
-                  primaryTrack.vy,
-                  cameraConfig,
-                  currentTime,
-                  true
-                );
-                finalPanCmd = pidResult.panCmdDegS;
-                finalTiltCmd = pidResult.tiltCmdDegS;
-                currentErr = pidResult.errorPx;
-              } else {
-                // Autonomous acquisition slewing:
-                // Slew directly toward the active primary beacon's scene coordinates
-                // Guarantees the yellow FOV box always seeks, intercepts, and follows the beacon!
-                const sceneDx = activeTarget.x - newCamCenter.x;
-                const sceneDy = activeTarget.y - newCamCenter.y;
-                const pxPerDeg = 100;
-                const errDegX = sceneDx / pxPerDeg;
-                const errDegY = sceneDy / pxPerDeg;
-                const maxPan = cameraConfig.maxPanSpeedDegS || 5.0;
-                const maxTilt = cameraConfig.maxTiltSpeedDegS || 5.0;
-
-                finalPanCmd = Math.max(-maxPan, Math.min(maxPan, errDegX * 4.5));
-                finalTiltCmd = Math.max(-maxTilt, Math.min(maxTilt, errDegY * 4.5));
-                currentErr = Math.hypot(sceneDx, sceneDy) * (cameraConfig.resolutionWidth / (cameraConfig.fovXDeg * pxPerDeg));
-              }
-
-              // Numerical guards with Number.isFinite
-              if (!Number.isFinite(finalPanCmd)) finalPanCmd = 0;
-              if (!Number.isFinite(finalTiltCmd)) finalTiltCmd = 0;
-              if (!Number.isFinite(currentErr)) currentErr = 0;
-
-              // Slew rate limits
-              finalPanCmd = Math.max(-cameraConfig.maxPanSpeedDegS, Math.min(cameraConfig.maxPanSpeedDegS, finalPanCmd));
-              finalTiltCmd = Math.max(-cameraConfig.maxTiltSpeedDegS, Math.min(cameraConfig.maxTiltSpeedDegS, finalTiltCmd));
-
-              setPanCmdDegS(finalPanCmd);
-              setTiltCmdDegS(finalTiltCmd);
-              setCurrentErrorPx(currentErr);
-
-              // Send Pan/Tilt slew velocity commands to camera gimbal
-              cameraRef.current.setPanTiltCommand(
-                finalPanCmd,
-                finalTiltCmd,
-                currentTime
-              );
-
-              // 9. Multi-Beacon Metrics & Performance Logger
-              const pTime = performance.now() - pStartTime;
-
-              const beaconMetrics: BeaconMetricItem[] = allTracks.map((tr) => ({
-                id: tr.id,
-                color: tr.color,
-                state: tr.state,
-                errorPx: Number.isFinite(tr.errorFromBoresightPx) ? tr.errorFromBoresightPx : 0,
-                avgErrorPx: tr.lockedFrames > 0 ? tr.errorSum / tr.lockedFrames : 0,
-                lockRetentionPct: tr.lockRetentionPct,
-                lossRatePct: tr.totalFrames > 0 ? Math.max(0, ((tr.totalFrames - tr.lockedFrames) / tr.totalFrames) * 100) : 0,
-                totalFrames: tr.totalFrames,
-                lockedFrames: tr.lockedFrames,
-              }));
-
-              loggerRef.current.recordFrame({
-                timestampSec: currentTime / 1000,
-                frameIndex: loggerRef.current.frameLogs.length + 1,
-                fps: currentFps,
-                state: trackerRef.current.state,
-                targetTrueX: activeTarget.x,
-                targetTrueY: activeTarget.y,
-                cameraCenterX: newCamCenter.x,
-                cameraCenterY: newCamCenter.y,
-                measuredX: primaryDet.gaussianX,
-                measuredY: primaryDet.gaussianY,
-                predictedX: primaryTrack.predictedX,
-                predictedY: primaryTrack.predictedY,
-                trackingErrorPx: currentErr,
-                centroidingErrorPx: primaryDet.offsetDiffPx,
-                gaussianRSquared: primaryDet.rSquared,
-                panCmd: finalPanCmd,
-                tiltCmd: finalTiltCmd,
-              });
-
-              const { metrics: newMetrics, thresholds: newThresholds } = loggerRef.current.computeMetrics(
-                currentFps,
-                trackerRef.current.state,
-                currentErr,
-                primaryDet.offsetDiffPx,
-                trackerRef.current.lastAcquisitionDurationSec,
-                trackerRef.current.lastReacquisitionDurationSec,
-                pTime,
-                beaconMetrics
-              );
-
-              setMetrics(newMetrics);
-              setThresholds(newThresholds);
-
-              if (frameCounter % 2 === 0) {
-                setErrorHistory((prev) => [...prev.slice(-90), currentErr]);
-                setFpsHistory((prev) => [...prev.slice(-90), currentFps]);
-              }
-            }
-          }
-        }
-
-        // ==========================================
-        // PIPELINE 2: BENCHMARK MODE (DIRECT VIDEO INPUT BYPASS)
-        // ==========================================
-        else if (currentPage === 'benchmark') {
-          const videoEngine = benchmarkVideoRef.current;
-          const frameImgData = videoEngine.extractFrame(dt);
-
-          const canvasEl = document.getElementById('benchmark-video-canvas') as HTMLCanvasElement | null;
-          if (!frameImgData) {
-            // Idle state: clear canvas if no frame has ever been decoded
-            if (canvasEl && !videoEngine.state.hasDecodedFrame) {
-              const bCtx = canvasEl.getContext('2d');
-              if (bCtx) {
-                bCtx.fillStyle = '#080a10';
-                bCtx.fillRect(0, 0, canvasEl.width, canvasEl.height);
-                bCtx.strokeStyle = 'rgba(234, 179, 8, 0.12)';
-                bCtx.lineWidth = 1;
-                bCtx.beginPath();
-                bCtx.moveTo(canvasEl.width / 2, 0);
-                bCtx.lineTo(canvasEl.width / 2, canvasEl.height);
-                bCtx.moveTo(0, canvasEl.height / 2);
-                bCtx.lineTo(canvasEl.width, canvasEl.height / 2);
-                bCtx.stroke();
-              }
-            }
-            if (benchmarkHasActiveFrame) {
-              setBenchmarkHasActiveFrame(false);
-            }
-          } else if (canvasEl && frameImgData) {
-            if (!benchmarkHasActiveFrame) {
-              setBenchmarkHasActiveFrame(true);
-            }
-
-            const bCtx = canvasEl.getContext('2d');
-            if (bCtx) {
-              bCtx.putImageData(frameImgData, 0, 0);
-
-              // Detect ALL light sources / beacons from video frame using same detection pipeline
-              const allDets = detectionModuleRef.current.detectAll(frameImgData, {
-                engine: detectionEngine,
-                useAdaptiveThreshold,
-                manualThreshold,
-                adaptiveK,
-                minBlobSize: 4,
-                maxBlobSize: 500,
-              });
-
-              const primaryDet: CentroidResult = allDets.length > 0 ? allDets[0] : {
-                momentX: canvasEl.width / 2,
-                momentY: canvasEl.height / 2,
-                gaussianX: canvasEl.width / 2,
-                gaussianY: canvasEl.height / 2,
-                offsetDiffPx: 0,
-                rSquared: 0,
-                confidence: 0,
-                boundingBox: null,
-                detected: false,
-              };
-              setBenchmarkCentroidResult(primaryDet);
-
-              const track = benchmarkTrackerRef.current.update(primaryDet, dt);
-              setBenchmarkTrackingState(track.state);
-
-              const isLocked = track.state === 'TRACKING' || track.state === 'ACQUIRED';
-              const pid = pidControllerRef.current.computeCommand(
-                track.estimatedX,
-                track.estimatedY,
-                0,
-                0,
-                cameraConfig,
-                currentTime,
-                isLocked
-              );
-              setBenchmarkPanCmd(pid.panCmdDegS);
-              setBenchmarkTiltCmd(pid.tiltCmdDegS);
-              setBenchmarkCurrentError(pid.errorPx);
-
-              // Accumulate real per-frame benchmark measurements
-              const stats = benchmarkStatsRef.current;
-              stats.totalFrames++;
-
-              if (isLocked) {
-                if (stats.firstAcqFrame < 0) {
-                  stats.firstAcqFrame = stats.totalFrames;
-                }
-                stats.lockedFrames++;
-                stats.errorSum += pid.errorPx;
-                if (pid.errorPx > stats.maxErrorPx) stats.maxErrorPx = pid.errorPx;
-                stats.centroidErrSum += primaryDet.offsetDiffPx;
-              } else {
-                if (stats.firstAcqFrame >= 0 && stats.lastLossFrame < 0) {
-                  stats.lastLossFrame = stats.totalFrames;
-                  stats.lostCount++;
-                }
-              }
-
-              const avgErr = stats.lockedFrames > 0 ? stats.errorSum / stats.lockedFrames : pid.errorPx;
-              const acqTimeSec = stats.firstAcqFrame >= 0 ? Number((stats.firstAcqFrame * dt).toFixed(2)) : 0;
-              const lockPct = stats.totalFrames > 0 ? (stats.lockedFrames / stats.totalFrames) * 100 : 0;
-              const lossPct = stats.totalFrames > 0 ? ((stats.totalFrames - stats.lockedFrames) / stats.totalFrames) * 100 : 0;
-              const centroidErr = stats.lockedFrames > 0 ? stats.centroidErrSum / stats.lockedFrames : primaryDet.offsetDiffPx;
-
-              const newBM: PerformanceMetrics = {
-                fps: currentFps,
-                trackingState: track.state,
-                currentErrorPx: pid.errorPx,
-                avgErrorPx: Number(avgErr.toFixed(2)),
-                maxErrorPx: Number(stats.maxErrorPx.toFixed(2)),
-                acquisitionTimeSec: acqTimeSec,
-                lockRetentionRatePct: Number(lockPct.toFixed(1)),
-                reacquisitionTimeSec: stats.reacqTimeSec,
-                targetLossRatePct: Number(lossPct.toFixed(1)),
-                processingTimeMs: performance.now() - pStartTime,
-                centroidingErrorPx: Number(centroidErr.toFixed(3)),
-                totalFrames: stats.totalFrames,
-                lockedFrames: stats.lockedFrames,
-                lostCount: stats.lostCount,
-                simDurationSec: stats.totalFrames * dt,
-              };
-
-              const newBT: ThresholdEvaluation = {
-                acquisitionTimePass: acqTimeSec <= 2.0 && stats.firstAcqFrame >= 0,
-                trackingErrorPass: avgErr <= 10.0,
-                targetLossRatePass: lossPct < 5.0,
-                reacquisitionTimePass: true,
-                processingSpeedPass: currentFps >= 20.0,
-                lockRetentionPass: lockPct >= 80.0,
-              };
-
-              setBenchmarkMetrics(newBM);
-              setBenchmarkThresholds(newBT);
-
-              // Feed rolling graphs history for Benchmark Mode
-              if (frameCounter % 2 === 0) {
-                setBenchmarkErrorHistory((prev) => [...prev.slice(-90), pid.errorPx]);
-                setBenchmarkFpsHistory((prev) => [...prev.slice(-90), currentFps]);
-              }
-
-              // Render yellow shape-conforming bounding boxes for EACH detected light source
-              for (let i = 0; i < allDets.length; i++) {
-                const det = allDets[i];
-                if (det.detected && det.boundingBox) {
-                  const bb = det.boundingBox;
-                  const isPrimary = i === 0;
-
-                  // Semi-transparent yellow fill conforming to the light source shape
-                  bCtx.fillStyle = isPrimary ? 'rgba(234, 179, 8, 0.20)' : 'rgba(234, 179, 8, 0.12)';
-                  bCtx.fillRect(bb.x, bb.y, bb.width, bb.height);
-
-                  // Yellow bounding box matching light source dimensions
-                  bCtx.strokeStyle = '#facc15';
-                  bCtx.lineWidth = isPrimary ? 2.2 : 1.6;
-                  bCtx.strokeRect(bb.x, bb.y, bb.width, bb.height);
-
-                  // Bright yellow corner brackets
-                  const cLen = Math.min(8, Math.max(4, Math.floor(Math.min(bb.width, bb.height) / 3)));
-                  bCtx.strokeStyle = '#fef08a';
-                  bCtx.lineWidth = 2.0;
-                  bCtx.beginPath();
-                  // top-left
-                  bCtx.moveTo(bb.x, bb.y + cLen);
-                  bCtx.lineTo(bb.x, bb.y);
-                  bCtx.lineTo(bb.x + cLen, bb.y);
-                  // top-right
-                  bCtx.moveTo(bb.x + bb.width - cLen, bb.y);
-                  bCtx.lineTo(bb.x + bb.width, bb.y);
-                  bCtx.lineTo(bb.x + bb.width, bb.y + cLen);
-                  // bottom-left
-                  bCtx.moveTo(bb.x, bb.y + bb.height - cLen);
-                  bCtx.lineTo(bb.x, bb.y + bb.height);
-                  bCtx.lineTo(bb.x + cLen, bb.y + bb.height);
-                  // bottom-right
-                  bCtx.moveTo(bb.x + bb.width - cLen, bb.y + bb.height);
-                  bCtx.lineTo(bb.x + bb.width, bb.y + bb.height);
-                  bCtx.lineTo(bb.x + bb.width, bb.y + bb.height - cLen);
-                  bCtx.stroke();
-
-                  // Sub-pixel centroid mark
-                  bCtx.beginPath();
-                  bCtx.arc(det.gaussianX, det.gaussianY, isPrimary ? 4 : 3, 0, Math.PI * 2);
-                  bCtx.fillStyle = '#fde047';
-                  bCtx.fill();
-
-                  // HUD Badge tag with shape dimensions
-                  const tag = isPrimary ? `[B1 PRIMARY] ${bb.width}×${bb.height}px` : `[B${i + 1}] ${bb.width}×${bb.height}px`;
-                  bCtx.font = 'bold 9px "IBM Plex Mono", ui-monospace, monospace';
-                  const textW = bCtx.measureText(tag).width + 8;
-                  const badgeY = Math.max(16, bb.y - 4);
-                  bCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                  bCtx.fillRect(bb.x, badgeY - 13, textW, 14);
-                  bCtx.strokeStyle = '#eab308';
-                  bCtx.lineWidth = 1;
-                  bCtx.strokeRect(bb.x, badgeY - 13, textW, 14);
-                  bCtx.fillStyle = '#facc15';
-                  bCtx.fillText(tag, bb.x + 4, badgeY - 3);
-                }
-              }
-
-              // Optical boresight crosshair
-              bCtx.strokeStyle = 'rgba(234, 179, 8, 0.35)';
-              bCtx.lineWidth = 1;
-              bCtx.beginPath();
-              bCtx.moveTo(canvasEl.width / 2, 0);
-              bCtx.lineTo(canvasEl.width / 2, canvasEl.height);
-              bCtx.moveTo(0, canvasEl.height / 2);
-              bCtx.lineTo(canvasEl.width, canvasEl.height / 2);
-              bCtx.stroke();
-            }
-          }
-        }
-
-        // ==========================================
-        // PIPELINE 3: WEBCAM MODE (getUserMedia)
-        // ==========================================
-        else if (currentPage === 'webcam') {
-          const webcam = webcamEngineRef.current;
-          const webImgData = webcam.extractFrame();
-
-          const canvasEl = document.getElementById('webcam-tracking-canvas') as HTMLCanvasElement | null;
-          if (!webImgData) {
-            if (webcamHasActiveFrame) {
-              setWebcamHasActiveFrame(false);
-            }
-          } else if (canvasEl && webImgData) {
-            if (!webcamHasActiveFrame) {
-              setWebcamHasActiveFrame(true);
-            }
-
-            const wCtx = canvasEl.getContext('2d');
-            if (wCtx) {
-              wCtx.putImageData(webImgData, 0, 0);
-
-              // Detect ALL light sources / beacons from webcam!
-              const allDets = detectionModuleRef.current.detectAll(webImgData, {
-                engine: detectionEngine,
-                useAdaptiveThreshold,
-                manualThreshold,
-                adaptiveK,
-                minBlobSize: 4,
-                maxBlobSize: 600,
-              });
-
-              const primaryDet: CentroidResult = allDets.length > 0 ? allDets[0] : {
-                momentX: canvasEl.width / 2,
-                momentY: canvasEl.height / 2,
-                gaussianX: canvasEl.width / 2,
-                gaussianY: canvasEl.height / 2,
-                offsetDiffPx: 0,
-                rSquared: 0,
-                confidence: 0,
-                boundingBox: null,
-                detected: false,
-              };
-              setWebcamCentroidResult(primaryDet);
-
-              const track = webcamTrackerRef.current.update(primaryDet, dt);
-              setWebcamTrackingState(track.state);
-
-              const isLocked = track.state === 'TRACKING' || track.state === 'ACQUIRED';
-              const errPx = isLocked
-                ? Math.hypot(primaryDet.gaussianX - canvasEl.width / 2, primaryDet.gaussianY - canvasEl.height / 2)
-                : 0;
-              setWebcamCurrentError(errPx);
-
-              // Accumulate real per-frame webcam session measurements
-              const stats = webcamStatsRef.current;
-              stats.totalFrames++;
-
-              if (isLocked) {
-                if (stats.firstAcqFrame < 0) {
-                  stats.firstAcqFrame = stats.totalFrames;
-                }
-                stats.lockedFrames++;
-                stats.errorSum += errPx;
-                if (errPx > stats.maxErrorPx) stats.maxErrorPx = errPx;
-                stats.centroidErrSum += primaryDet.offsetDiffPx;
-              } else {
-                if (stats.firstAcqFrame >= 0 && stats.lastLossFrame < 0) {
-                  stats.lastLossFrame = stats.totalFrames;
-                  stats.lostCount++;
-                }
-              }
-
-              const avgErr = stats.lockedFrames > 0 ? stats.errorSum / stats.lockedFrames : errPx;
-              const acqTimeSec = stats.firstAcqFrame >= 0 ? Number((stats.firstAcqFrame * dt).toFixed(2)) : 0;
-              const lockPct = stats.totalFrames > 0 ? (stats.lockedFrames / stats.totalFrames) * 100 : 0;
-              const lossPct = stats.totalFrames > 0 ? ((stats.totalFrames - stats.lockedFrames) / stats.totalFrames) * 100 : 0;
-              const centroidErr = stats.lockedFrames > 0 ? stats.centroidErrSum / stats.lockedFrames : primaryDet.offsetDiffPx;
-
-              const newWM: PerformanceMetrics = {
-                fps: currentFps,
-                trackingState: track.state,
-                currentErrorPx: errPx,
-                avgErrorPx: Number(avgErr.toFixed(2)),
-                maxErrorPx: Number(stats.maxErrorPx.toFixed(2)),
-                acquisitionTimeSec: acqTimeSec,
-                lockRetentionRatePct: Number(lockPct.toFixed(1)),
-                reacquisitionTimeSec: stats.reacqTimeSec,
-                targetLossRatePct: Number(lossPct.toFixed(1)),
-                processingTimeMs: performance.now() - pStartTime,
-                centroidingErrorPx: Number(centroidErr.toFixed(3)),
-                totalFrames: stats.totalFrames,
-                lockedFrames: stats.lockedFrames,
-                lostCount: stats.lostCount,
-                simDurationSec: stats.totalFrames * dt,
-              };
-
-              const newWT: ThresholdEvaluation = {
-                acquisitionTimePass: acqTimeSec <= 2.0 && stats.firstAcqFrame >= 0,
-                trackingErrorPass: avgErr <= 10.0,
-                targetLossRatePass: lossPct < 5.0,
-                reacquisitionTimePass: true,
-                processingSpeedPass: currentFps >= 20.0,
-                lockRetentionPass: lockPct >= 80.0,
-              };
-
-              setWebcamMetrics(newWM);
-              setWebcamThresholds(newWT);
-
-              // Feed rolling graphs history for Webcam Mode
-              if (frameCounter % 2 === 0) {
-                setWebcamErrorHistory((prev) => [...prev.slice(-90), errPx]);
-                setWebcamFpsHistory((prev) => [...prev.slice(-90), currentFps]);
-              }
-
-              // Render yellow shape-conforming bounding boxes for EACH detected light source
-              for (let i = 0; i < allDets.length; i++) {
-                const det = allDets[i];
-                if (det.detected && det.boundingBox) {
-                  const bb = det.boundingBox;
-                  const isPrimary = i === 0;
-
-                  // Semi-transparent yellow fill conforming to the light source shape
-                  wCtx.fillStyle = isPrimary ? 'rgba(234, 179, 8, 0.20)' : 'rgba(234, 179, 8, 0.12)';
-                  wCtx.fillRect(bb.x, bb.y, bb.width, bb.height);
-
-                  // Yellow shape-conforming box
-                  wCtx.strokeStyle = '#facc15';
-                  wCtx.lineWidth = isPrimary ? 2.2 : 1.6;
-                  wCtx.strokeRect(bb.x, bb.y, bb.width, bb.height);
-
-                  // Bright yellow corner brackets
-                  const cLen = Math.min(8, Math.max(4, Math.floor(Math.min(bb.width, bb.height) / 3)));
-                  wCtx.strokeStyle = '#fef08a';
-                  wCtx.lineWidth = 2.0;
-                  wCtx.beginPath();
-                  // top-left
-                  wCtx.moveTo(bb.x, bb.y + cLen);
-                  wCtx.lineTo(bb.x, bb.y);
-                  wCtx.lineTo(bb.x + cLen, bb.y);
-                  // top-right
-                  wCtx.moveTo(bb.x + bb.width - cLen, bb.y);
-                  wCtx.lineTo(bb.x + bb.width, bb.y);
-                  wCtx.lineTo(bb.x + bb.width, bb.y + cLen);
-                  // bottom-left
-                  wCtx.moveTo(bb.x, bb.y + bb.height - cLen);
-                  wCtx.lineTo(bb.x, bb.y + bb.height);
-                  wCtx.lineTo(bb.x + cLen, bb.y + bb.height);
-                  // bottom-right
-                  wCtx.moveTo(bb.x + bb.width - cLen, bb.y + bb.height);
-                  wCtx.lineTo(bb.x + bb.width, bb.y + bb.height);
-                  wCtx.lineTo(bb.x + bb.width, bb.y + bb.height - cLen);
-                  wCtx.stroke();
-
-                  // Sub-pixel centroid mark
-                  wCtx.beginPath();
-                  wCtx.arc(det.gaussianX, det.gaussianY, isPrimary ? 4 : 3, 0, Math.PI * 2);
-                  wCtx.fillStyle = '#fde047';
-                  wCtx.fill();
-
-                  // HUD Badge tag with shape dimensions
-                  const tag = isPrimary ? `[BEACON B1] ${bb.width}×${bb.height}px` : `[BEACON B${i + 1}] ${bb.width}×${bb.height}px`;
-                  wCtx.font = 'bold 9px "IBM Plex Mono", ui-monospace, monospace';
-                  const textW = wCtx.measureText(tag).width + 8;
-                  const badgeY = Math.max(16, bb.y - 4);
-                  wCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                  wCtx.fillRect(bb.x, badgeY - 13, textW, 14);
-                  wCtx.strokeStyle = '#eab308';
-                  wCtx.lineWidth = 1;
-                  wCtx.strokeRect(bb.x, badgeY - 13, textW, 14);
-                  wCtx.fillStyle = '#facc15';
-                  wCtx.fillText(tag, bb.x + 4, badgeY - 3);
-                }
-              }
-
-              // Optical center crosshair
-              wCtx.strokeStyle = 'rgba(234, 179, 8, 0.35)';
-              wCtx.lineWidth = 1;
-              wCtx.beginPath();
-              wCtx.moveTo(canvasEl.width / 2, 0);
-              wCtx.lineTo(canvasEl.width / 2, canvasEl.height);
-              wCtx.moveTo(0, canvasEl.height / 2);
-              wCtx.lineTo(canvasEl.width, canvasEl.height / 2);
-              wCtx.stroke();
-            }
-          }
-        }
-    } catch (err) {
-      console.error('Lakshya Simulation loop recovered from error:', err);
-    }
-    };
-
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [
-    currentPage,
-    isRunning,
-    cameraConfig,
-    disturbances,
-    pidConfig,
-    detectionEngine,
-    useAdaptiveThreshold,
-    manualThreshold,
-    adaptiveK,
-    targetPriority,
-    selectedPrimaryBeaconId,
-  ]);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg text-fg flex flex-col font-sans transition-colors duration-100 select-none">
@@ -1831,7 +991,7 @@ export default function App() {
         }
       />
 
-      {/* 5. Help Dialog (Shortcuts or About) */}
+      {/* 5. Help Dialog */}
       {helpKind && (
         <HelpDialog kind={helpKind} onClose={() => setHelpKind(null)} />
       )}
