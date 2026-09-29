@@ -1,0 +1,10 @@
+{
+  "name": "Remix fsoc_ui",
+  "description": "Imported from GitHub: Devika10-06/fsoc_ui",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
