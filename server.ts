@@ -20,15 +20,13 @@ async function startServer() {
   app.use(express.json({ limit: '25mb' }));
 
   // Helper to execute Python CLI bridge
-  const runPythonCommand = (commandPayload: Record<string, unknown>): Promise<any> => {
+   const runPythonCommand = (commandPayload: Record<string, unknown>): Promise<any> => {
     return new Promise((resolve, reject) => {
       const scriptPath = path.resolve(__dirname, 'python_core/api_bridge.py');
-      const py = spawn('python3', [scriptPath, JSON.stringify(commandPayload)], {
+      const pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+      const py = spawn(pyCmd, [scriptPath, JSON.stringify(commandPayload)], {
         cwd: __dirname,
       });
-
-      let stdout = '';
-      let stderr = '';
 
       py.stdout.on('data', (data) => {
         stdout += data.toString();
@@ -102,7 +100,8 @@ async function startServer() {
     }
 
     const t0 = performance.now();
-    const py = spawn('python3', ['-c', code], {
+    const pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+    const py = spawn(pyCmd, ['-c', code], {
       cwd: path.resolve(__dirname, 'python_core'),
     });
 
