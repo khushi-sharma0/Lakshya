@@ -1,0 +1,236 @@
+/*
+  FSOC tracker design tokens — single source of truth for color, type,
+  spacing, radius and elevation. Components should prefer the semantic
+  utilities (bg-bg, bg-panel, border-line, text-fg, text-muted, text-accent,
+  text-ok/warn/err). The legacy Tailwind ramps (slate, cyan, emerald, …) are
+  remapped below so un-migrated markup still lands on the same palette.
+*/
+
+@layer base {
+  :root,
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #17181a;
+    --panel: #1f2023;
+    --panel-2: #26282b;
+    --panel-hover: #2b2d31;
+    --line: #34363b;
+    --line-strong: #464950;
+    --fg: #e6e7e9;
+    --muted: #9a9da3;
+    --dim: #80848b;
+
+    --accent: #5b8ac0;
+    --accent-hover: #6b98cc;
+    --accent-fg: #ffffff;
+    --accent-subtle: #22303f;
+    --focus: #6b98cc;
+
+    --ok: #3fae6a;
+    --warn: #d19a2a;
+    --err: #e05252;
+
+    --canvas-bg: #111214;
+    --canvas-grid: rgba(154, 157, 163, 0.12);
+    --canvas-text: #c9cbcf;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --panel-2: #f8f9fa;
+    --panel-hover: #eef0f3;
+    --line: #d5d8dd;
+    --line-strong: #b9bdc4;
+    --fg: #1b1d21;
+    --muted: #5c6068;
+    --dim: #6b6f76;
+
+    --accent: #3a6699;
+    --accent-hover: #30557f;
+    --accent-fg: #ffffff;
+    --accent-subtle: #e6edf5;
+    --focus: #3a6699;
+
+    --ok: #2a8a50;
+    --warn: #a86f0c;
+    --err: #c23a3a;
+
+    --canvas-bg: #111214;
+    --canvas-grid: rgba(154, 157, 163, 0.12);
+    --canvas-text: #c9cbcf;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-panel-hover: var(--panel-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-focus: var(--focus);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+}
+
+@theme {
+  /* Type */
+  --font-sans: "IBM Plex Sans", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-display: var(--font-sans);
+
+  /* Letter-spacing is not used — labels are sentence case. */
+  --tracking-tighter: 0;
+  --tracking-tight: 0;
+  --tracking-wide: 0;
+  --tracking-wider: 0;
+  --tracking-widest: 0;
+
+  /* Radius: 2–4px only. rounded-full is kept for status dots. */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
+
+  /* Elevation: flat surfaces. lg/xl/2xl are reserved for popovers/menus. */
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 4px 12px rgb(0 0 0 / 0.18);
+  --shadow-xl: 0 6px 16px rgb(0 0 0 / 0.22);
+  --shadow-2xl: 0 8px 24px rgb(0 0 0 / 0.28);
+  --inset-shadow-2xs: 0 0 #0000;
+  --inset-shadow-xs: 0 0 #0000;
+  --inset-shadow-sm: 0 0 #0000;
+
+  /* No blur anywhere. */
+  --blur-xs: 0px;
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
+  --blur-xl: 0px;
+
+  /* Neutral gray ramp (replaces blue-tinted slate). Key stops match spec:
+     50 light bg, 200 light border, 400 dark muted, 800 dark border,
+     900 dark panel, 950 dark bg. */
+  --color-slate-50: #f4f5f7;
+  --color-slate-100: #eceef1;
+  --color-slate-200: #d5d8dd;
+  --color-slate-300: #bcc0c6;
+  --color-slate-400: #9a9da3;
+  --color-slate-500: #6f737a;
+  --color-slate-600: #5c6068;
+  --color-slate-700: #464950;
+  --color-slate-800: #34363b;
+  --color-slate-900: #1f2023;
+  --color-slate-950: #17181a;
+
+  /* Steel-blue accent ramp. Every legacy "cool" hue maps here so there is
+     exactly one accent color in the UI. */
+  --color-cyan-50: #eef3f9;
+  --color-cyan-100: #dce6f2;
+  --color-cyan-200: #b9cce3;
+  --color-cyan-300: #93b1d6;
+  --color-cyan-400: #7aa1cf;
+  --color-cyan-500: #4f7fb4;
+  --color-cyan-600: #3a6699;
+  --color-cyan-700: #30557f;
+  --color-cyan-800: #284666;
+  --color-cyan-900: #203750;
+  --color-cyan-950: #1b2735;
+
+  --color-sky-300: var(--color-cyan-300);
+  --color-sky-400: var(--color-cyan-400);
+  --color-sky-500: var(--color-cyan-500);
+  --color-sky-600: var(--color-cyan-600);
+  --color-blue-300: var(--color-cyan-300);
+  --color-blue-400: var(--color-cyan-400);
+  --color-blue-500: var(--color-cyan-500);
+  --color-blue-600: var(--color-cyan-600);
+  --color-purple-500: var(--color-cyan-500);
+  --color-fuchsia-400: var(--color-cyan-400);
+
+  /* Status ramps — lock / pass / fail only. Slightly desaturated. */
+  --color-emerald-50: #eaf6ef;
+  --color-emerald-300: #7fcc9d;
+  --color-emerald-400: #52b67a;
+  --color-emerald-500: #3fae6a;
+  --color-emerald-600: #2a8a50;
+  --color-emerald-950: #15261c;
+
+  --color-amber-300: #e6c068;
+  --color-amber-400: #dcaa45;
+  --color-amber-500: #d19a2a;
+  --color-amber-600: #a86f0c;
+  --color-amber-700: #8a5a08;
+  --color-yellow-400: var(--color-amber-400);
+
+  --color-rose-50: #fbecec;
+  --color-rose-400: #e86f6f;
+  --color-rose-500: #e05252;
+  --color-rose-600: #c23a3a;
+  --color-rose-950: #2e1719;
+}
+
+@layer base {
+  html {
+    background-color: var(--bg);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    background-color: var(--bg);
+    color: var(--fg);
+    font-feature-settings: "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numeric readouts and logs only. */
+  .font-mono-tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  ::selection {
+    background: var(--accent-subtle);
+    color: var(--fg);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+}

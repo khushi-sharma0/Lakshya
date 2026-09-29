@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
+
+/* Legacy variable names kept as aliases so existing inline styles resolve
+   to the token palette. New code should use the tokens in theme.css. */
+@layer base {
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --bg-page: var(--bg);
+    --bg-surface: var(--panel);
+    --bg-card: var(--panel);
+    --bg-card-solid: var(--panel);
+    --bg-card-subtle: var(--panel-2);
+    --bg-header: var(--panel);
+    --border-main: var(--line);
+    --border-subtle: var(--line);
+    --text-main: var(--fg);
+    --text-muted: var(--muted);
+    --text-dim: var(--dim);
+  }
+}
