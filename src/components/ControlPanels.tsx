@@ -1,31 +1,11 @@
 /**
- * Inspector property grid for the simulation page.
- * Every control maps 1:1 to the handlers passed in from App; no simulation
- * logic lives here.
+ * Configuration Drawer Component for Lakshya
+ * Contains parameters for Camera, Disturbances, PID, and Target.
  */
 
 import React, { useState } from 'react';
-import {
-  CameraConfig,
-  DisturbancesConfig,
-  PidConfig,
-  TargetConfig,
-  TargetMotionPattern,
-  TargetShape,
-  AtmosphericPreset,
-  PlatformMotionType,
-  DetectionEngine,
-  TargetPrioritization,
-} from '../types';
-import {
-  PropRow,
-  PropSection,
-  Segmented,
-  SelectField,
-  SliderField,
-  Stepper,
-  ToggleLabel,
-} from './shell/PropertyGrid';
+import { CameraConfig, DisturbancesConfig, PidConfig, TargetConfig, DetectionEngine, TargetPrioritization } from '../types';
+import { Sliders, Camera, Wind, Activity, Target, Cpu, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
 interface ControlPanelsProps {
   cameraConfig: CameraConfig;
@@ -35,13 +15,7 @@ interface ControlPanelsProps {
   pidConfig: PidConfig;
   onUpdatePid: (cfg: Partial<PidConfig>) => void;
   primaryTarget: TargetConfig;
-  targets?: TargetConfig[];
   onUpdateTarget: (cfg: Partial<TargetConfig>) => void;
-  onUpdateBeacon?: (id: string, cfg: Partial<TargetConfig>) => void;
-  beaconCount?: number;
-  onSetBeaconCount?: (count: number) => void;
-  selectedPrimaryBeaconId?: string;
-  onSetPrimaryBeaconId?: (id: string) => void;
   detectionEngine: DetectionEngine;
   onSetDetectionEngine: (engine: DetectionEngine) => void;
   useAdaptiveThreshold: boolean;
@@ -49,53 +23,178 @@ interface ControlPanelsProps {
   adaptiveK: number;
   onSetAdaptiveK: (k: number) => void;
   manualThreshold: number;
-  onSetManualThreshold: (t: number) => void;
+  onSetManualThreshold: (val: number) => void;
   isMultiTarget: boolean;
   onToggleMultiTarget: () => void;
   targetPriority: TargetPrioritization;
   onSetTargetPriority: (p: TargetPrioritization) => void;
-  adaptiveExplanation: string;
+  adaptiveExplanation?: string;
+  beaconCount?: number;
+  onSetBeaconCount?: (n: number) => void;
+  selectedPrimaryBeaconId?: string;
+  onSetPrimaryBeaconId?: (id: string) => void;
+  onUpdateBeacon?: (id: string, cfg: Partial<TargetConfig>) => void;
+  targets?: TargetConfig[];
 }
 
-const RESOLUTIONS = [
-  { value: '640x480', label: '640 × 480' },
-  { value: '800x600', label: '800 × 600' },
-  { value: '1024x768', label: '1024 × 768' },
-  { value: '1280x720', label: '1280 × 720' },
-] as const;
+function SectionHeader({
+  icon: Icon,
+  title,
+  isOpen,
+  onToggle,
+}: {
+  icon: React.ElementType;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between border-b border-line px-3 py-2 text-[12px] font-semibold tracking-wider text-fg uppercase transition-colors hover:bg-panel-hover"
+    >
+      <div className="flex items-center gap-2">
+        <Icon className="size-3.5 text-accent" />
+        <span>{title}</span>
+      </div>
+      {isOpen ? <ChevronDown className="size-3.5 text-muted" /> : <ChevronRight className="size-3.5 text-muted" />}
+    </button>
+  );
+}
 
-const MOTION_PATTERNS: ReadonlyArray<{ value: TargetMotionPattern; label: string }> = [
-  { value: 'straight_line', label: 'Straight line (PS)' },
-  { value: 'circular', label: 'Circular (PS)' },
-  { value: 'figure_eight', label: 'Figure-eight (PS)' },
-  { value: 'random', label: 'Random walk (PS)' },
-  { value: 'spiral', label: 'Spiral' },
-  { value: 'sinusoidal', label: 'Sinusoidal' },
-  { value: 'custom_path', label: 'Custom path' },
-];
+function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between px-3 py-1.5 text-[12px]">
+      <span className="text-muted">{label}</span>
+      <div className="flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
 
-const SHAPES: ReadonlyArray<{ value: TargetShape; label: string }> = [
-  { value: 'square', label: 'Square' },
-  { value: 'circle', label: 'Circle' },
-  { value: 'gaussian_spot', label: 'Gaussian' },
-  { value: 'cross', label: 'Cross' },
-];
+function PropSection({ title, aside, children }: { title?: string; aside?: string; children: React.ReactNode }) {
+  return (
+    <div className="border-b border-line/50 pb-2">
+      {title && (
+        <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[11px] font-semibold text-dim uppercase">
+          <span>{title}</span>
+          {aside && <span className="font-mono text-[10px] text-muted normal-case">{aside}</span>}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
 
-const ATMOSPHERE: ReadonlyArray<{ value: AtmosphericPreset; label: string }> = [
-  { value: 'clear', label: 'Clear' },
-  { value: 'haze', label: 'Haze' },
-  { value: 'fog', label: 'Fog' },
-  { value: 'rain', label: 'Rain' },
-  { value: 'low_light', label: 'Low light' },
-];
+function Slider({
+  ariaLabel,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = '',
+  onChange,
+}: {
+  ariaLabel: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (val: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="range"
+        aria-label={ariaLabel}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="h-1.5 w-24 cursor-pointer accent-accent"
+      />
+      <span className="w-12 text-right font-mono text-[11px] text-fg">
+        {value}
+        {unit}
+      </span>
+    </div>
+  );
+}
 
-const PLATFORM_MOTION: ReadonlyArray<{ value: PlatformMotionType; label: string }> = [
-  { value: 'linear', label: 'Linear' },
-  { value: 'circular', label: 'Circular' },
-  { value: 'random', label: 'Random' },
-  { value: 'spiral', label: 'Spiral' },
-  { value: 'figure_eight', label: 'Figure-eight' },
-];
+function Stepper({
+  ariaLabel,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 font-mono text-[11px]">
+      <button
+        type="button"
+        aria-label={`Decrease ${ariaLabel}`}
+        disabled={value <= min}
+        onClick={() => onChange(Math.max(min, value - 1))}
+        className="flex size-5 items-center justify-center rounded border border-line bg-panel text-fg hover:bg-panel-hover disabled:opacity-30"
+      >
+        -
+      </button>
+      <span className="w-4 text-center">{value}</span>
+      <button
+        type="button"
+        aria-label={`Increase ${ariaLabel}`}
+        disabled={value >= max}
+        onClick={() => onChange(Math.min(max, value + 1))}
+        className="flex size-5 items-center justify-center rounded border border-line bg-panel text-fg hover:bg-panel-hover disabled:opacity-30"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function Segmented<T extends string | number>({
+  ariaLabel,
+  value,
+  options,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: T;
+  options: Array<{ value: T; label: React.ReactNode; title?: string }>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex rounded border border-line bg-bg p-0.5" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={String(opt.value)}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            title={opt.title}
+            onClick={() => onChange(opt.value)}
+            className={`flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              active ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export const ControlPanels: React.FC<ControlPanelsProps> = ({
   cameraConfig,
@@ -105,13 +204,7 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
   pidConfig,
   onUpdatePid,
   primaryTarget,
-  targets = [],
   onUpdateTarget,
-  onUpdateBeacon,
-  beaconCount = 1,
-  onSetBeaconCount,
-  selectedPrimaryBeaconId = 'B1',
-  onSetPrimaryBeaconId,
   detectionEngine,
   onSetDetectionEngine,
   useAdaptiveThreshold,
@@ -120,207 +213,333 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
   onSetAdaptiveK,
   manualThreshold,
   onSetManualThreshold,
+  isMultiTarget,
+  onToggleMultiTarget,
   targetPriority,
   onSetTargetPriority,
-  adaptiveExplanation,
+  beaconCount = 1,
+  onSetBeaconCount,
+  selectedPrimaryBeaconId = 'B1',
+  onSetPrimaryBeaconId,
+  onUpdateBeacon,
+  targets = [],
 }) => {
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    detection: true,
+    sensor: true,
+    target: true,
+    disturbances: false,
+    pid: false,
+  });
+
+  const toggle = (sec: string) => setOpenSections((p) => ({ ...p, [sec]: !p[sec] }));
+
   const [selectedBeaconTab, setSelectedBeaconTab] = useState<string>('B1');
-
   const editingBeacon = targets.find((t) => t.id === selectedBeaconTab) || primaryTarget;
-  const updateEditingBeacon = (cfg: Partial<TargetConfig>) => {
-    if (onUpdateBeacon) onUpdateBeacon(editingBeacon.id, cfg);
-    if (editingBeacon.id === primaryTarget.id) onUpdateTarget(cfg);
-  };
-  const isEditingPrimary = editingBeacon.id === selectedPrimaryBeaconId;
-
-  const d = disturbances;
 
   return (
-    <div className="text-[12px]">
-      <PropSection title="Detection">
-        <PropRow label="Method">
-          <Segmented
-            ariaLabel="Detection method"
-            value={detectionEngine}
-            onChange={onSetDetectionEngine}
-            options={[
-              { value: 'traditional_cv', label: 'Moment + Gaussian', title: 'Image moments with 2D Gaussian sub-pixel fit' },
-              { value: 'ai_detector', label: 'Saliency kernel', title: 'Spatial matched saliency kernel' },
-            ]}
-          />
-        </PropRow>
-        <PropRow label={<ToggleLabel label="Adaptive threshold" checked={useAdaptiveThreshold} onChange={onToggleAdaptiveThreshold} />}>
-          <span className="text-dim">mean + k·σ of background</span>
-        </PropRow>
-        {useAdaptiveThreshold ? (
-          <PropRow label="Threshold k" htmlFor="prop-adaptive-k">
-            <SliderField id="prop-adaptive-k" label="Threshold k" value={adaptiveK} min={1} max={4.5} step={0.1} decimals={1} unit="σ" onChange={onSetAdaptiveK} />
-          </PropRow>
-        ) : (
-          <PropRow label="Fixed threshold" htmlFor="prop-manual-threshold">
-            <SliderField id="prop-manual-threshold" label="Fixed threshold" value={manualThreshold} min={20} max={240} step={1} unit="DN" onChange={(v) => onSetManualThreshold(Math.round(v))} />
-          </PropRow>
-        )}
-        <div className="px-3 pt-1">
-          <div className="rounded-sm border border-line bg-panel-2 px-2 py-1 font-mono-tabular text-[11px] leading-4 text-muted">
-            {adaptiveExplanation}
-          </div>
-        </div>
-      </PropSection>
+    <div className="flex flex-col divide-y divide-line text-fg">
+      {/* 1. Detection Panel */}
+      <div>
+        <SectionHeader
+          icon={Cpu}
+          title="Detection"
+          isOpen={openSections.detection}
+          onToggle={() => toggle('detection')}
+        />
+        {openSections.detection && (
+          <div className="py-1">
+            <PropRow label="Method">
+              <Segmented
+                ariaLabel="Detection engine"
+                value={detectionEngine}
+                onChange={onSetDetectionEngine}
+                options={[
+                  { value: 'traditional_cv', label: 'Moment + Gaussian' },
+                  { value: 'ai_detector', label: 'Saliency kernel' },
+                ]}
+              />
+            </PropRow>
 
-      <PropSection title="Sensor">
-        <PropRow label="Resolution" htmlFor="prop-resolution">
-          <SelectField
-            id="prop-resolution"
-            value={`${cameraConfig.resolutionWidth}x${cameraConfig.resolutionHeight}` as (typeof RESOLUTIONS)[number]['value']}
-            options={RESOLUTIONS}
-            onChange={(v) => {
-              const [w, h] = v.split('x').map(Number);
-              onUpdateCameraConfig({ resolutionWidth: w, resolutionHeight: h });
-            }}
-          />
-        </PropRow>
-        <PropRow label="Horizontal FOV" htmlFor="prop-fov-x">
-          <SliderField id="prop-fov-x" label="Horizontal FOV" value={cameraConfig.fovXDeg} min={2} max={8} step={0.5} decimals={1} unit="°" onChange={(v) => onUpdateCameraConfig({ fovXDeg: v })} />
-        </PropRow>
-        <PropRow label="Vertical FOV" htmlFor="prop-fov-y">
-          <SliderField id="prop-fov-y" label="Vertical FOV" value={cameraConfig.fovYDeg} min={1.5} max={6} step={0.5} decimals={1} unit="°" onChange={(v) => onUpdateCameraConfig({ fovYDeg: v })} />
-        </PropRow>
-      </PropSection>
+            <PropRow label="Adaptive threshold">
+              <label className="flex cursor-pointer items-center gap-2 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={useAdaptiveThreshold}
+                  onChange={onToggleAdaptiveThreshold}
+                  className="accent-accent"
+                />
+                <span>mean + k·σ of background</span>
+              </label>
+            </PropRow>
 
-      <PropSection title="Target" aside={`Primary ${selectedPrimaryBeaconId}`}>
-        <PropRow label="Beacons">
-          <Stepper
-            ariaLabel="Beacon count"
-            value={beaconCount || 1}
-            min={1}
-            max={5}
-            onChange={(n) => onSetBeaconCount && onSetBeaconCount(n)}
-          />
-        </PropRow>
-        {(beaconCount || 1) > 1 && (
-          <PropRow label="Editing">
-            <Segmented
-              ariaLabel="Beacon to edit"
-              value={editingBeacon.id}
-              onChange={setSelectedBeaconTab}
-              options={targets.map((b) => ({
-                value: b.id,
-                label: (
-                  <>
-                    <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                    <span className="font-mono-tabular">{b.id}</span>
-                  </>
-                ),
-              }))}
-            />
-          </PropRow>
-        )}
-        <PropRow label="Gimbal priority">
-          <Segmented
-            ariaLabel="Gimbal priority"
-            value={targetPriority}
-            onChange={onSetTargetPriority}
-            options={[
-              { value: 'closest_to_center', label: 'Closest', title: 'Beacon closest to the image centre' },
-              { value: 'brightest', label: 'Brightest', title: 'Brightest detected beacon' },
-              { value: 'click_to_select', label: 'Manual', title: 'Click a beacon in either view to lock it' },
-            ]}
-          />
-        </PropRow>
-        {onSetPrimaryBeaconId && (beaconCount || 1) > 1 && (
-          <PropRow label={`${editingBeacon.id} role`}>
-            {isEditingPrimary ? (
-              <span className="text-fg">Primary (gimbal lock)</span>
+            {useAdaptiveThreshold ? (
+              <PropRow label="Threshold k">
+                <Slider
+                  ariaLabel="Adaptive threshold multiplier k"
+                  value={adaptiveK}
+                  min={1.0}
+                  max={5.0}
+                  step={0.1}
+                  unit=" σ"
+                  onChange={onSetAdaptiveK}
+                />
+              </PropRow>
             ) : (
-              <button
-                type="button"
-                onClick={() => onSetPrimaryBeaconId(editingBeacon.id)}
-                className="h-7 rounded-sm border border-line bg-panel-2 px-2 text-[12px] text-fg hover:bg-panel-hover"
-              >
-                Set as primary
-              </button>
+              <PropRow label="Manual threshold">
+                <Slider
+                  ariaLabel="Manual pixel intensity threshold"
+                  value={manualThreshold}
+                  min={10}
+                  max={245}
+                  step={5}
+                  onChange={onSetManualThreshold}
+                />
+              </PropRow>
             )}
-          </PropRow>
+          </div>
         )}
-        <PropRow label="Motion" htmlFor="prop-motion">
-          <SelectField
-            id="prop-motion"
-            value={editingBeacon.motionPattern}
-            options={MOTION_PATTERNS}
-            onChange={(v) => updateEditingBeacon({ motionPattern: v })}
-          />
-        </PropRow>
-        <PropRow label="Shape">
-          <Segmented ariaLabel="Beacon shape" value={editingBeacon.shape} onChange={(v) => updateEditingBeacon({ shape: v })} options={SHAPES} />
-        </PropRow>
-        <PropRow label="Size" htmlFor="prop-size" hint="PS 5–20 px, default 10 px">
-          <SliderField id="prop-size" label="Size" value={editingBeacon.size} min={5} max={20} step={1} unit="px" onChange={(v) => updateEditingBeacon({ size: Math.round(v) })} />
-        </PropRow>
-        <PropRow label="Speed" htmlFor="prop-speed">
-          <SliderField id="prop-speed" label="Speed" value={editingBeacon.speed} min={20} max={160} step={5} unit="px/s" onChange={(v) => updateEditingBeacon({ speed: Math.round(v) })} />
-        </PropRow>
-      </PropSection>
+      </div>
 
-      <PropSection title="Disturbances">
-        <PropRow label={<ToggleLabel label="Salt and pepper" checked={d.enableSaltPepper} onChange={(v) => onUpdateDisturbances({ enableSaltPepper: v })} />}>
-          <SliderField id="prop-sp" label="Salt and pepper density" value={d.saltPepperDensity} min={0.01} max={0.2} step={0.01} scale={100} unit="%" disabled={!d.enableSaltPepper} onChange={(v) => onUpdateDisturbances({ saltPepperDensity: v })} />
-        </PropRow>
-        <PropRow label={<ToggleLabel label="Gaussian" checked={d.enableGaussian} onChange={(v) => onUpdateDisturbances({ enableGaussian: v })} />}>
-          <SliderField id="prop-gauss" label="Gaussian sigma" value={d.gaussianSigma} min={1} max={20} step={1} unit="σ px" disabled={!d.enableGaussian} onChange={(v) => onUpdateDisturbances({ gaussianSigma: Math.round(v) })} />
-        </PropRow>
-        <PropRow label={<ToggleLabel label="Poisson shot" checked={d.enablePoisson} onChange={(v) => onUpdateDisturbances({ enablePoisson: v })} />}>
-          <SliderField id="prop-poisson" label="Poisson intensity" value={d.poissonIntensity} min={0.1} max={1} step={0.1} scale={10} decimals={1} disabled={!d.enablePoisson} onChange={(v) => onUpdateDisturbances({ poissonIntensity: v })} />
-        </PropRow>
-        <PropRow label={<ToggleLabel label="Housing jitter" checked={d.enableJitter} onChange={(v) => onUpdateDisturbances({ enableJitter: v })} />}>
-          <SliderField id="prop-jitter" label="Jitter amplitude" value={d.jitterAmplitudePx} min={1} max={20} step={1} unit="px/fr" disabled={!d.enableJitter} onChange={(v) => onUpdateDisturbances({ jitterAmplitudePx: Math.round(v) })} />
-        </PropRow>
-        <PropRow label="Atmosphere" htmlFor="prop-atmos">
-          <SelectField id="prop-atmos" value={d.atmosphericPreset} options={ATMOSPHERE} onChange={(v) => onUpdateDisturbances({ atmosphericPreset: v })} />
-        </PropRow>
-        <PropRow label="Attenuation" htmlFor="prop-atmos-density">
-          <SliderField id="prop-atmos-density" label="Attenuation" value={d.atmosphericIntensity} min={0.1} max={1} step={0.05} scale={100} unit="%" disabled={d.atmosphericPreset === 'clear'} onChange={(v) => onUpdateDisturbances({ atmosphericIntensity: v })} />
-        </PropRow>
-        <PropRow label={<ToggleLabel label="Platform motion" checked={d.enablePlatformMotion} onChange={(v) => onUpdateDisturbances({ enablePlatformMotion: v })} />}>
-          <SelectField id="prop-platform" value={d.platformMotionType} options={PLATFORM_MOTION} disabled={!d.enablePlatformMotion} onChange={(v) => onUpdateDisturbances({ platformMotionType: v })} />
-        </PropRow>
-        <PropRow label="Platform amplitude" htmlFor="prop-platform-amp">
-          <SliderField id="prop-platform-amp" label="Platform amplitude" value={d.platformAmplitudePx} min={2} max={20} step={1} unit="px" disabled={!d.enablePlatformMotion} onChange={(v) => onUpdateDisturbances({ platformAmplitudePx: Math.round(v) })} />
-        </PropRow>
-      </PropSection>
+      {/* 2. Sensor & Camera Panel */}
+      <div>
+        <SectionHeader
+          icon={Camera}
+          title="Sensor"
+          isOpen={openSections.sensor}
+          onToggle={() => toggle('sensor')}
+        />
+        {openSections.sensor && (
+          <div className="py-1">
+            <PropRow label="Resolution">
+              <span className="font-mono text-[11px]">
+                {cameraConfig.resolutionWidth} × {cameraConfig.resolutionHeight}
+              </span>
+            </PropRow>
+            <PropRow label="Horizontal FOV">
+              <Slider
+                ariaLabel="Horizontal Field of View"
+                value={cameraConfig.fovXDeg}
+                min={1.0}
+                max={15.0}
+                step={0.5}
+                unit="°"
+                onChange={(fovXDeg) => onUpdateCameraConfig({ fovXDeg })}
+              />
+            </PropRow>
+            <PropRow label="Vertical FOV">
+              <Slider
+                ariaLabel="Vertical Field of View"
+                value={cameraConfig.fovYDeg}
+                min={1.0}
+                max={12.0}
+                step={0.5}
+                unit="°"
+                onChange={(fovYDeg) => onUpdateCameraConfig({ fovYDeg })}
+              />
+            </PropRow>
+          </div>
+        )}
+      </div>
 
-      <PropSection title="Control loop">
-        <PropRow label="Kp" htmlFor="prop-kp">
-          <SliderField id="prop-kp" label="Kp" value={pidConfig.kp} min={0.5} max={6} step={0.1} decimals={2} onChange={(v) => onUpdatePid({ kp: v })} />
-        </PropRow>
-        <PropRow label="Ki" htmlFor="prop-ki">
-          <SliderField id="prop-ki" label="Ki" value={pidConfig.ki} min={0} max={1} step={0.02} decimals={2} onChange={(v) => onUpdatePid({ ki: v })} />
-        </PropRow>
-        <PropRow label="Kd" htmlFor="prop-kd">
-          <SliderField id="prop-kd" label="Kd" value={pidConfig.kd} min={0} max={1.5} step={0.05} decimals={2} onChange={(v) => onUpdatePid({ kd: v })} />
-        </PropRow>
-        <PropRow label="Kff (velocity)" htmlFor="prop-kff">
-          <SliderField id="prop-kff" label="Kff" value={pidConfig.kff} min={0} max={1} step={0.05} decimals={2} onChange={(v) => onUpdatePid({ kff: v })} />
-        </PropRow>
-        <PropRow label="Loop rate" htmlFor="prop-loop" hint="PS ≥ 20 Hz">
-          <SliderField id="prop-loop" label="Loop rate" value={cameraConfig.controlLoopHz} min={20} max={50} step={5} unit="Hz" onChange={(v) => onUpdateCameraConfig({ controlLoopHz: Math.round(v) })} />
-        </PropRow>
-      </PropSection>
+      {/* 3. Target & Multi-Beacon Panel */}
+      <div>
+        <SectionHeader
+          icon={Target}
+          title="Target"
+          isOpen={openSections.target}
+          onToggle={() => toggle('target')}
+        />
+        {openSections.target && (
+          <div className="py-1">
+            <PropSection title="Target" aside={`Primary ${selectedPrimaryBeaconId}`}>
+              <PropRow label="Beacons">
+                <Stepper
+                  ariaLabel="Beacon count"
+                  value={beaconCount || 1}
+                  min={1}
+                  max={5}
+                  onChange={(n) => onSetBeaconCount && onSetBeaconCount(n)}
+                />
+              </PropRow>
+              {(beaconCount || 1) > 1 && (
+                <PropRow label="Editing">
+                  <Segmented
+                    ariaLabel="Beacon to edit"
+                    value={editingBeacon.id}
+                    onChange={(v) => setSelectedBeaconTab(String(v))}
+                    options={targets.map((b) => ({
+                      value: b.id,
+                      label: (
+                        <>
+                          <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+                          <span className="font-mono-tabular">{b.id}</span>
+                        </>
+                      ),
+                    }))}
+                  />
+                </PropRow>
+              )}
+              <PropRow label="Gimbal priority">
+                <Segmented
+                  ariaLabel="Gimbal priority"
+                  value={targetPriority}
+                  onChange={onSetTargetPriority}
+                  options={[
+                    { value: 'closest_to_center', label: 'Closest', title: 'Beacon closest to the image centre' },
+                    { value: 'brightest', label: 'Brightest', title: 'Brightest detected beacon' },
+                    { value: 'click_to_select', label: 'Manual', title: 'Click a beacon in either view to lock it' },
+                  ]}
+                />
+              </PropRow>
+            </PropSection>
 
-      <PropSection title="Gimbal">
-        <PropRow label="Max pan rate" htmlFor="prop-pan" hint="PS 5–10 °/s">
-          <SliderField id="prop-pan" label="Max pan rate" value={cameraConfig.maxPanSpeedDegS} min={5} max={10} step={0.5} decimals={1} unit="°/s" onChange={(v) => onUpdateCameraConfig({ maxPanSpeedDegS: v })} />
-        </PropRow>
-        <PropRow label="Max tilt rate" htmlFor="prop-tilt" hint="PS 5–10 °/s">
-          <SliderField id="prop-tilt" label="Max tilt rate" value={cameraConfig.maxTiltSpeedDegS} min={5} max={10} step={0.5} decimals={1} unit="°/s" onChange={(v) => onUpdateCameraConfig({ maxTiltSpeedDegS: v })} />
-        </PropRow>
-        <PropRow label="Servo lag" htmlFor="prop-lag">
-          <SliderField id="prop-lag" label="Servo lag" value={pidConfig.servoLagMs} min={0} max={100} step={5} unit="ms" onChange={(v) => onUpdatePid({ servoLagMs: Math.round(v) })} />
-        </PropRow>
-        <PropRow label="Backlash" htmlFor="prop-backlash" hint="Dead band on direction reversal">
-          <SliderField id="prop-backlash" label="Backlash" value={pidConfig.backlashPx} min={0} max={4} step={0.2} decimals={1} unit="px" onChange={(v) => onUpdatePid({ backlashPx: v })} />
-        </PropRow>
-      </PropSection>
+            <PropSection title={`Trajectory · ${editingBeacon.id}`}>
+              <PropRow label="Motion">
+                <Segmented
+                  ariaLabel="Target motion pattern"
+                  value={editingBeacon.motionPattern}
+                  onChange={(mp) =>
+                    onUpdateBeacon
+                      ? onUpdateBeacon(editingBeacon.id, { motionPattern: mp as any })
+                      : onUpdateTarget({ motionPattern: mp as any })
+                  }
+                  options={[
+                    { value: 'straight_line', label: 'Straight' },
+                    { value: 'circular', label: 'Circle' },
+                    { value: 'figure_eight', label: 'Fig-8' },
+                    { value: 'maneuvering', label: 'Random' },
+                  ]}
+                />
+              </PropRow>
+              <PropRow label="Shape">
+                <Segmented
+                  ariaLabel="Target shape"
+                  value={editingBeacon.shape}
+                  onChange={(sh) =>
+                    onUpdateBeacon
+                      ? onUpdateBeacon(editingBeacon.id, { shape: sh as any })
+                      : onUpdateTarget({ shape: sh as any })
+                  }
+                  options={[
+                    { value: 'square', label: 'Square' },
+                    { value: 'circle', label: 'Circle' },
+                    { value: 'gaussian_spot', label: 'Gaussian' },
+                    { value: 'cross', label: 'Cross' },
+                  ]}
+                />
+              </PropRow>
+            </PropSection>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Optical Disturbances Panel */}
+      <div>
+        <SectionHeader
+          icon={Wind}
+          title="Disturbances"
+          isOpen={openSections.disturbances}
+          onToggle={() => toggle('disturbances')}
+        />
+        {openSections.disturbances && (
+          <div className="py-1">
+            <PropRow label="Noise (Gaussian σ)">
+              <Slider
+                ariaLabel="Gaussian noise sigma"
+                value={disturbances.gaussianSigma}
+                min={0}
+                max={15}
+                step={1}
+                onChange={(gaussianSigma) => onUpdateDisturbances({ gaussianSigma, enableGaussian: gaussianSigma > 0 })}
+              />
+            </PropRow>
+            <PropRow label="Salt & Pepper">
+              <Slider
+                ariaLabel="Salt and pepper density"
+                value={Math.round(disturbances.saltPepperDensity * 100)}
+                min={0}
+                max={30}
+                step={1}
+                unit="%"
+                onChange={(val) =>
+                  onUpdateDisturbances({
+                    saltPepperDensity: val / 100,
+                    enableSaltPepper: val > 0,
+                  })
+                }
+              />
+            </PropRow>
+            <PropRow label="Atmosphere">
+              <Segmented
+                ariaLabel="Atmospheric preset"
+                value={disturbances.atmosphericPreset}
+                onChange={(preset) => onUpdateDisturbances({ atmosphericPreset: preset as any })}
+                options={[
+                  { value: 'clear', label: 'Clear' },
+                  { value: 'light_haze', label: 'Haze' },
+                  { value: 'moderate_fog', label: 'Fog' },
+                  { value: 'heavy_turbulence', label: 'Turb' },
+                ]}
+              />
+            </PropRow>
+          </div>
+        )}
+      </div>
+
+      {/* 5. PID Gimbal Controller Panel */}
+      <div>
+        <SectionHeader
+          icon={Activity}
+          title="Gimbal PID"
+          isOpen={openSections.pid}
+          onToggle={() => toggle('pid')}
+        />
+        {openSections.pid && (
+          <div className="py-1">
+            <PropRow label="Proportional (Kp)">
+              <Slider
+                ariaLabel="Proportional Gain Kp"
+                value={pidConfig.kp}
+                min={0.1}
+                max={10.0}
+                step={0.1}
+                onChange={(kp) => onUpdatePid({ kp })}
+              />
+            </PropRow>
+            <PropRow label="Integral (Ki)">
+              <Slider
+                ariaLabel="Integral Gain Ki"
+                value={pidConfig.ki}
+                min={0.0}
+                max={2.0}
+                step={0.05}
+                onChange={(ki) => onUpdatePid({ ki })}
+              />
+            </PropRow>
+            <PropRow label="Derivative (Kd)">
+              <Slider
+                ariaLabel="Derivative Gain Kd"
+                value={pidConfig.kd}
+                min={0.0}
+                max={5.0}
+                step={0.1}
+                onChange={(kd) => onUpdatePid({ kd })}
+              />
+            </PropRow>
+            <PropRow label="Feedforward (Kff)">
+              <Slider
+                ariaLabel="Velocity Feedforward Gain Kff"
+                value={pidConfig.kff}
+                min={0.0}
+                max={2.0}
+                step={0.1}
+                onChange={(kff) => onUpdatePid({ kff })}
+              />
+            </PropRow>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

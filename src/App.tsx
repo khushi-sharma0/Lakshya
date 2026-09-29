@@ -3,11 +3,12 @@
  * ISRO Problem Statement 26169: AI-Based Virtual Camera Tracking System
  * for Coarse Alignment of Mobile FSOC Terminals.
  *
- * Multipage Architecture (4 Pages):
+ * Multipage Architecture (5 Pages):
  * 1. Simulation (Home with embedded collapsible parameters drawer)
  * 2. Benchmark Mode (Direct Video Input Bypass)
  * 3. Webcam Mode
  * 4. Reports (Multi-Run Time-Series History & Automated Benchmark Matrix)
+ * 5. Python Engine (Algorithm Inspection & CPython 3.10 Subprocess Bridge)
  *
  * Strict Non-Negotiable Principle:
  * Tracking algorithm NEVER receives ground-truth coordinates.
@@ -47,13 +48,13 @@ import { SimulationPage } from './pages/SimulationPage';
 import { BenchmarkModeView } from './components/BenchmarkModeView';
 import { WebcamModeView } from './components/WebcamModeView';
 import { ReportsPage } from './pages/ReportsPage';
+import { PythonEnginePage } from './pages/PythonEnginePage';
 import { ReportModal } from './components/ReportModal';
 import { Menu } from './components/shell/MenuBar';
 import { StatusBar } from './components/shell/StatusBar';
 import { HelpDialog, HelpDialogKind } from './components/shell/HelpDialog';
 
 export default function App() {
-  // Navigation: 4 Pages (Configuration embedded directly in Simulation)
   const [currentPage, setCurrentPage] = useState<AppPage>('simulation');
   const [isDark, setIsDark] = useState<boolean>(true);
   const [isRunning, setIsRunning] = useState<boolean>(true);
@@ -103,7 +104,7 @@ export default function App() {
   const [targetPriority, setTargetPriority] = useState<TargetPrioritization>('brightest');
   const [isCustomPathActive, setIsCustomPathActive] = useState<boolean>(false);
 
-  // Multi-Beacon Management (1 to 5 Beacons)
+  // Multi-Beacon Management
   const [beaconCount, setBeaconCount] = useState<number>(1);
   const [selectedPrimaryBeaconId, setSelectedPrimaryBeaconId] = useState<string>('B1');
   const [beaconTracks, setBeaconTracks] = useState<BeaconTrack[]>([]);
@@ -147,7 +148,6 @@ export default function App() {
   const [currentErrorPx, setCurrentErrorPx] = useState<number>(0);
   const [adaptiveExplanation, setAdaptiveExplanation] = useState<string>('Initializing adaptive threshold...');
 
-  // Metrics & 5 ISRO Thresholds
   const [metrics, setMetrics] = useState<PerformanceMetrics>({
     fps: 30,
     trackingState: 'SEARCHING',
@@ -175,11 +175,10 @@ export default function App() {
     lockRetentionPass: true,
   });
 
-  // Rolling Histories for Charts
   const [errorHistory, setErrorHistory] = useState<number[]>([]);
   const [fpsHistory, setFpsHistory] = useState<number[]>([]);
 
-  // Benchmark Mode Dedicated States
+  // Benchmark States
   const [benchmarkMetrics, setBenchmarkMetrics] = useState<PerformanceMetrics>({
     fps: 0,
     trackingState: 'SEARCHING',
@@ -257,45 +256,9 @@ export default function App() {
     setBenchmarkCurrentError(0);
     setBenchmarkErrorHistory([]);
     setBenchmarkFpsHistory([]);
-    setBenchmarkMetrics({
-      fps: 0,
-      trackingState: 'SEARCHING',
-      currentErrorPx: 0,
-      avgErrorPx: 0,
-      maxErrorPx: 0,
-      acquisitionTimeSec: 0,
-      lockRetentionRatePct: 0,
-      reacquisitionTimeSec: 0,
-      targetLossRatePct: 0,
-      processingTimeMs: 0,
-      centroidingErrorPx: 0,
-      totalFrames: 0,
-      lockedFrames: 0,
-      lostCount: 0,
-      simDurationSec: 0,
-    });
-    setBenchmarkThresholds({
-      acquisitionTimePass: false,
-      trackingErrorPass: false,
-      targetLossRatePass: false,
-      reacquisitionTimePass: false,
-      processingSpeedPass: false,
-      lockRetentionPass: false,
-    });
-    setBenchmarkCentroidResult({
-      momentX: 320,
-      momentY: 240,
-      gaussianX: 320,
-      gaussianY: 240,
-      offsetDiffPx: 0,
-      rSquared: 0,
-      confidence: 0,
-      boundingBox: null,
-      detected: false,
-    });
   };
 
-  // Webcam Mode Dedicated States
+  // Webcam States
   const webcamTrackerRef = useRef<TrackingModule>(new TrackingModule());
   const [webcamMetrics, setWebcamMetrics] = useState<PerformanceMetrics>({
     fps: 0,
@@ -369,31 +332,6 @@ export default function App() {
     setWebcamCurrentError(0);
     setWebcamErrorHistory([]);
     setWebcamFpsHistory([]);
-    setWebcamMetrics({
-      fps: 0,
-      trackingState: 'SEARCHING',
-      currentErrorPx: 0,
-      avgErrorPx: 0,
-      maxErrorPx: 0,
-      acquisitionTimeSec: 0,
-      lockRetentionRatePct: 0,
-      reacquisitionTimeSec: 0,
-      targetLossRatePct: 0,
-      processingTimeMs: 0,
-      centroidingErrorPx: 0,
-      totalFrames: 0,
-      lockedFrames: 0,
-      lostCount: 0,
-      simDurationSec: 0,
-    });
-    setWebcamThresholds({
-      acquisitionTimePass: false,
-      trackingErrorPass: false,
-      targetLossRatePass: false,
-      reacquisitionTimePass: false,
-      processingSpeedPass: false,
-      lockRetentionPass: false,
-    });
   };
 
   // Offscreen Virtual Scene Buffers
@@ -424,7 +362,6 @@ export default function App() {
     }
   }, [isDark]);
 
-  // Multi-Beacon & Target Actions
   const handleSetBeaconCount = (count: number) => {
     const clamped = Math.max(1, Math.min(5, Math.round(count)));
     setBeaconCount(clamped);
@@ -453,10 +390,6 @@ export default function App() {
       const primary = updated.find((t) => t.id === id) || updated[0];
       setPrimaryTarget({ ...primary });
     }
-    if (cfg.motionPattern) {
-      trackerRef.current.reset();
-      searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-    }
   };
 
   const handleSelectPrimaryBeacon = (id: string) => {
@@ -484,9 +417,6 @@ export default function App() {
     const updatedTargets = [...targetEngineRef.current.getTargets()];
     setPrimaryTarget({ ...updatedTargets[0] });
     setTargets(updatedTargets);
-    if (cfg.motionPattern && cfg.motionPattern !== 'custom_path') {
-      setIsCustomPathActive(false);
-    }
   };
 
   const handleSetCustomPath = (points: Array<{ x: number; y: number }>) => {
@@ -494,7 +424,6 @@ export default function App() {
     setIsCustomPathActive(true);
     setPrimaryTarget({ ...targetEngineRef.current.getTargets()[0] });
     trackerRef.current.reset();
-    searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
   };
 
   const handleClearCustomPath = () => {
@@ -502,7 +431,6 @@ export default function App() {
     setIsCustomPathActive(false);
     setPrimaryTarget({ ...targetEngineRef.current.getTargets()[0] });
     trackerRef.current.reset();
-    searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
   };
 
   const handleSetTargetPos = (x: number, y: number) => {
@@ -537,39 +465,11 @@ export default function App() {
     setCurrentErrorPx(0);
     setCameraCenter(cameraRef.current.getSceneCenter());
     setFovRect(cameraRef.current.getFovSceneRect());
-    setMetrics({
-      fps: 0,
-      trackingState: 'SEARCHING',
-      currentErrorPx: 0,
-      avgErrorPx: 0,
-      maxErrorPx: 0,
-      acquisitionTimeSec: 0,
-      lockRetentionRatePct: 0,
-      reacquisitionTimeSec: 0,
-      targetLossRatePct: 0,
-      processingTimeMs: 0,
-      centroidingErrorPx: 0,
-      totalFrames: 0,
-      lockedFrames: 0,
-      lostCount: 0,
-      simDurationSec: 0,
-    });
-    setThresholds({
-      acquisitionTimePass: false,
-      trackingErrorPass: false,
-      targetLossRatePass: false,
-      reacquisitionTimePass: false,
-      processingSpeedPass: false,
-      lockRetentionPass: false,
-    });
     handleResetBenchmark();
     handleResetWebcam();
   };
 
-  const handleToggleRunning = () => {
-    setIsRunning(!isRunning);
-  };
-
+  const handleToggleRunning = () => setIsRunning(!isRunning);
   const handleToggleRecording = () => {
     if (isRecording) {
       loggerRef.current.stopRecording();
@@ -602,7 +502,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Menubar definitions
   const menus: Menu[] = [
     {
       label: 'File',
@@ -632,19 +531,10 @@ export default function App() {
         { type: 'item', label: 'Benchmark video mode', shortcut: 'Ctrl+2', checked: currentPage === 'benchmark', onSelect: () => setCurrentPage('benchmark') },
         { type: 'item', label: 'Webcam mode', shortcut: 'Ctrl+3', checked: currentPage === 'webcam', onSelect: () => setCurrentPage('webcam') },
         { type: 'item', label: 'Reports & suite', shortcut: 'Ctrl+4', checked: currentPage === 'reports', onSelect: () => setCurrentPage('reports') },
+        { type: 'item', label: 'Python engine', checked: currentPage === 'python', onSelect: () => setCurrentPage('python') },
         { type: 'separator' },
         { type: 'item', label: 'Toggle monochrome sensor', shortcut: 'M', checked: cameraConfig.isMonochrome, onSelect: () => setCameraConfig((c) => ({ ...c, isMonochrome: !c.isMonochrome })) },
         { type: 'item', label: isDark ? 'Light theme' : 'Dark theme', shortcut: 'T', onSelect: () => setIsDark(!isDark) },
-      ],
-    },
-    {
-      label: 'Tools',
-      items: [
-        { type: 'item', label: 'Adaptive threshold', shortcut: 'A', checked: useAdaptiveThreshold, onSelect: () => setUseAdaptiveThreshold(!useAdaptiveThreshold) },
-        { type: 'item', label: 'Method: Moment + Gaussian', checked: detectionEngine === 'traditional_cv', onSelect: () => setDetectionEngine('traditional_cv') },
-        { type: 'item', label: 'Method: Saliency kernel', checked: detectionEngine === 'ai_detector', onSelect: () => setDetectionEngine('ai_detector') },
-        { type: 'separator' },
-        { type: 'item', label: 'Run automated benchmark suite', onSelect: () => setCurrentPage('reports') },
       ],
     },
     {
@@ -811,7 +701,6 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg text-fg flex flex-col font-sans transition-colors duration-100 select-none">
-      {/* 1. Desktop MenuBar + Mode Tabs + Transport Toolbar */}
       <Header
         page={currentPage}
         setPage={setCurrentPage}
@@ -825,7 +714,6 @@ export default function App() {
         onToggleRecording={handleToggleRecording}
       />
 
-      {/* 2. Compact Engineering Telemetry Ribbon (5 ISRO Thresholds with Status Dots) */}
       <TelemetryBar
         metrics={
           currentPage === 'benchmark'
@@ -844,7 +732,6 @@ export default function App() {
         explanation={adaptiveExplanation}
       />
 
-      {/* 3. Main Workspace Area */}
       <main className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col">
         {currentPage === 'simulation' && (
           <SimulationPage
@@ -954,9 +841,14 @@ export default function App() {
             />
           </div>
         )}
+
+        {currentPage === 'python' && (
+          <div className="flex-1 overflow-y-auto p-4 max-w-[1600px] w-full mx-auto">
+            <PythonEnginePage frameLogs={loggerRef.current.frameLogs} />
+          </div>
+        )}
       </main>
 
-      {/* 4. Docked Desktop Status Bar */}
       <StatusBar
         metrics={
           currentPage === 'benchmark'
@@ -991,12 +883,10 @@ export default function App() {
         }
       />
 
-      {/* 5. Help Dialog */}
       {helpKind && (
         <HelpDialog kind={helpKind} onClose={() => setHelpKind(null)} />
       )}
 
-      {/* 6. Quick Export Modal */}
       <ReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
