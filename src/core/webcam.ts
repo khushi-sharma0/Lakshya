@@ -13,11 +13,17 @@ export class WebcamEngine {
   private ctxOffscreen: CanvasRenderingContext2D;
 
   constructor() {
-    this.videoElement = document.createElement('video');
-    this.videoElement.playsInline = true;
-    this.videoElement.muted = true;
-    this.canvasOffscreen = document.createElement('canvas');
-    this.ctxOffscreen = this.canvasOffscreen.getContext('2d', { willReadFrequently: true })!;
+    if (typeof document !== 'undefined') {
+      this.videoElement = document.createElement('video');
+      this.videoElement.playsInline = true;
+      this.videoElement.muted = true;
+      this.canvasOffscreen = document.createElement('canvas');
+      this.ctxOffscreen = this.canvasOffscreen.getContext('2d', { willReadFrequently: true })!;
+    } else {
+      this.videoElement = null as any;
+      this.canvasOffscreen = null as any;
+      this.ctxOffscreen = null as any;
+    }
   }
 
   public async startWebcam(): Promise<boolean> {

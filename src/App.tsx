@@ -62,6 +62,7 @@ export default function App() {
   const webcamEngineRef = useRef<WebcamEngine>(new WebcamEngine());
   const searchEngineRef = useRef<SearchScanEngine>(new SearchScanEngine());
   const benchmarkTrackerRef = useRef<TrackingModule>(new TrackingModule());
+  const lastWasLockedRef = useRef<boolean>(true);
 
   // Configuration States
   const [cameraConfig, setCameraConfig] = useState<CameraConfig>(cameraRef.current.config);
@@ -96,6 +97,46 @@ export default function App() {
   const [beaconCount, setBeaconCount] = useState<number>(1);
   const [selectedPrimaryBeaconId, setSelectedPrimaryBeaconId] = useState<string>('B1');
   const [beaconTracks, setBeaconTracks] = useState<BeaconTrack[]>([]);
+
+  // Config Ref to decouple live simulation loop from state change re-renders
+  const configRef = useRef({
+    cameraConfig,
+    disturbances,
+    pidConfig,
+    detectionEngine,
+    useAdaptiveThreshold,
+    adaptiveK,
+    manualThreshold,
+    targetPriority,
+    selectedPrimaryBeaconId,
+    isRecording,
+  });
+
+  useEffect(() => {
+    configRef.current = {
+      cameraConfig,
+      disturbances,
+      pidConfig,
+      detectionEngine,
+      useAdaptiveThreshold,
+      adaptiveK,
+      manualThreshold,
+      targetPriority,
+      selectedPrimaryBeaconId,
+      isRecording,
+    };
+  }, [
+    cameraConfig,
+    disturbances,
+    pidConfig,
+    detectionEngine,
+    useAdaptiveThreshold,
+    adaptiveK,
+    manualThreshold,
+    targetPriority,
+    selectedPrimaryBeaconId,
+    isRecording,
+  ]);
 
   // Live Telemetry States
   const [targets, setTargets] = useState<TargetConfig[]>([]);
@@ -363,6 +404,7 @@ export default function App() {
 
   useEffect(() => {
     let animId: number;
+    lastTimeRef.current = performance.now();
 
     const loop = (now: number) => {
       const dt = Math.max(1 / 120, Math.min(1 / 15, (now - lastTimeRef.current) / 1000));
@@ -370,11 +412,23 @@ export default function App() {
       simTimeMsRef.current += dt * 1000;
       const simTimeMs = simTimeMsRef.current;
 
+      const cfg = configRef.current;
+      const currentCamConfig = cfg.cameraConfig;
+      const currentDisturbances = cfg.disturbances;
+      const currentPidConfig = cfg.pidConfig;
+      const currentDetectionEngine = cfg.detectionEngine;
+      const currentUseAdaptiveThreshold = cfg.useAdaptiveThreshold;
+      const currentManualThreshold = cfg.manualThreshold;
+      const currentAdaptiveK = cfg.adaptiveK;
+      const currentTargetPriority = cfg.targetPriority;
+      const currentSelectedPrimaryBeaconId = cfg.selectedPrimaryBeaconId;
+      const currentIsRecording = cfg.isRecording;
+
       const detectionOpts = {
-        engine: detectionEngine,
-        useAdaptiveThreshold,
-        manualThreshold,
-        adaptiveK,
+        engine: currentDetectionEngine,
+        useAdaptiveThreshold: currentUseAdaptiveThreshold,
+        manualThreshold: currentManualThreshold,
+        adaptiveK: currentAdaptiveK,
         minBlobSize: 4,
         maxBlobSize: 400,
       };
@@ -383,15 +437,15 @@ export default function App() {
         if (isRunning) {
           // 1. Step target engine
           targetEngineRef.current.update(dt);
-          const currentTargets = [...targetEngineRef.current.getTargets()];
+          const currentTargets = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
 
           // 2. Step virtual camera
           cameraRef.current.update(
             dt,
             simTimeMs,
-            disturbances,
-            pidConfig.servoLagMs,
-            pidConfig.backlashPx
+            currentDisturbances,
+            currentPidConfig.servoLagMs,
+            currentPidConfig.backlashPx
           );
 
           const currentCamCenter = cameraRef.current.getSceneCenter();
@@ -468,8 +522,8 @@ export default function App() {
               const rawFeedData = cropCtx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
               disturbanceInjectorRef.current.applyDisturbances(
                 rawFeedData,
-                disturbances,
-                cameraConfig.isMonochrome
+                currentDisturbances,
+                currentCamConfig.isMonochrome
               );
               cropCtx.putImageData(rawFeedData, 0, 0);
 
@@ -483,58 +537,57 @@ export default function App() {
                 allDets,
                 dt,
                 currentTargets,
-                targetPriority,
-                selectedPrimaryBeaconId,
-                cameraConfig.resolutionWidth / 2,
-                cameraConfig.resolutionHeight / 2
+                currentTargetPriority,
+                currentSelectedPrimaryBeaconId,
+                currentCamConfig.resolutionWidth / 2,
+                currentCamConfig.resolutionHeight / 2
               );
 
               const primaryState = mapBeaconStateToTrackingState(primaryTrack.state);
+              const isLocked = primaryState === 'TRACKING' || primaryState === 'ACQUIRED' || primaryTrack.state === 'TRACKING' || primaryTrack.state === 'COASTING';
 
-              // Lines 506 to 539
-// 5. Gimbal Control: Closed-loop PID vs Autonomous Search Scan
-let panCmd = 0;
-let tiltCmd = 0;
+              // 5. Gimbal Control: Closed-loop PID vs Autonomous Search Scan
+              let panCmd = 0;
+              let tiltCmd = 0;
 
-if (isLocked) {
-  lastWasLockedRef.current = true;
-  const pidRes = pidControllerRef.current.computeCommand(
-    primaryTrack.estimatedX,
-    primaryTrack.estimatedY,
-    primaryTrack.vx,
-    primaryTrack.vy,
-    cameraConfig,
-    simTimeMs,
-    true
-  );
-  panCmd = pidRes.panCmdDegS;
-  tiltCmd = pidRes.tiltCmdDegS;
-} else {
-  // If lock was just lost, re-anchor search scan origin to current camera position
-  if (lastWasLockedRef.current) {
-    lastWasLockedRef.current = false;
-    searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-  }
-  const searchCmd = searchEngineRef.current.update(
-    dt,
-    cameraConfig,
-    cameraRef.current.config.panPosDeg,
-    cameraRef.current.config.tiltPosDeg
-  );
-  panCmd = searchCmd.panCmdDegS;
-  tiltCmd = searchCmd.tiltCmdDegS;
-}
+              if (isLocked) {
+                lastWasLockedRef.current = true;
+                const pidRes = pidControllerRef.current.computeCommand(
+                  primaryTrack.estimatedX,
+                  primaryTrack.estimatedY,
+                  primaryTrack.vx,
+                  primaryTrack.vy,
+                  currentCamConfig,
+                  simTimeMs,
+                  true
+                );
+                panCmd = pidRes.panCmdDegS;
+                tiltCmd = pidRes.tiltCmdDegS;
+              } else {
+                if (lastWasLockedRef.current) {
+                  lastWasLockedRef.current = false;
+                  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
+                }
+                const searchCmd = searchEngineRef.current.update(
+                  dt,
+                  currentCamConfig,
+                  cameraRef.current.config.panPosDeg,
+                  cameraRef.current.config.tiltPosDeg
+                );
+                panCmd = searchCmd.panCmdDegS;
+                tiltCmd = searchCmd.tiltCmdDegS;
+              }
 
-cameraRef.current.setPanTiltCommand(panCmd, tiltCmd, simTimeMs);
+              cameraRef.current.setPanTiltCommand(panCmd, tiltCmd, simTimeMs);
 
               // 6. Metrics & Logging
-              const primaryTargetObj = currentTargets.find((t) => t.id === selectedPrimaryBeaconId) || currentTargets[0];
+              const primaryTargetObj = currentTargets.find((t) => t.id === currentSelectedPrimaryBeaconId) || currentTargets[0];
               const trueCamCoords = cameraRef.current.sceneToCameraFrame(primaryTargetObj.x, primaryTargetObj.y);
               const currentErrPx = trueCamCoords.inFov
-                ? Math.hypot(trueCamCoords.x - cameraConfig.resolutionWidth / 2, trueCamCoords.y - cameraConfig.resolutionHeight / 2)
-                : Math.hypot(primaryTrack.estimatedX - cameraConfig.resolutionWidth / 2, primaryTrack.estimatedY - cameraConfig.resolutionHeight / 2);
+                ? Math.hypot(trueCamCoords.x - currentCamConfig.resolutionWidth / 2, trueCamCoords.y - currentCamConfig.resolutionHeight / 2)
+                : Math.hypot(primaryTrack.estimatedX - currentCamConfig.resolutionWidth / 2, primaryTrack.estimatedY - currentCamConfig.resolutionHeight / 2);
 
-              if (isRecording) {
+              if (currentIsRecording) {
                 const elapsedSec = (now - loggerRef.current.startTimeSec * 1000) / 1000;
                 loggerRef.current.recordFrame({
                   frameIndex: loggerRef.current.frameLogs.length + 1,
@@ -855,150 +908,86 @@ cameraRef.current.setPanTiltCommand(panCmd, tiltCmd, simTimeMs);
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [
-    currentPage,
-    isRunning,
-    cameraConfig,
-    disturbances,
-    pidConfig,
-    detectionEngine,
-    useAdaptiveThreshold,
-    adaptiveK,
-    manualThreshold,
-    targetPriority,
-    selectedPrimaryBeaconId,
-    isRecording,
-  ]);
+  }, [currentPage, isRunning]);
 
-  // Lines 884 to 903
-const handleSetBeaconCount = (count: number) => {
-  const clamped = Math.max(1, Math.min(5, Math.round(count)));
-  setBeaconCount(clamped);
-  targetEngineRef.current.setBeaconCount(clamped);
-  const updated = [...targetEngineRef.current.getTargets()];
-  setTargets(updated);
-  if (!updated.some((t) => t.id === selectedPrimaryBeaconId)) {
-    setSelectedPrimaryBeaconId('B1');
-  }
-  const currentPrimary = updated.find((t) => t.id === selectedPrimaryBeaconId) || updated[0];
-  setPrimaryTarget({ ...currentPrimary });
-  if (currentPrimary) {
-    cameraRef.current.pointAtSceneLocation(currentPrimary.x, currentPrimary.y);
-    setCameraCenter(cameraRef.current.getSceneCenter());
-    setFovRect(cameraRef.current.getFovSceneRect());
-  }
-  trackerRef.current.reset();
-  pidControllerRef.current.reset();
-  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-};
-
-// Lines 905 to 921
-const handleUpdateBeacon = (id: string, cfg: Partial<TargetConfig>) => {
-  targetEngineRef.current.updateBeacon(id, cfg);
-  const updated = [...targetEngineRef.current.getTargets()];
-  setTargets(updated);
-  if (id === 'B1' || id === selectedPrimaryBeaconId) {
-    const primary = updated.find((t) => t.id === id) || updated[0];
-    setPrimaryTarget({ ...primary });
-    if (primary) {
-      cameraRef.current.pointAtSceneLocation(primary.x, primary.y);
-      setCameraCenter(cameraRef.current.getSceneCenter());
-      setFovRect(cameraRef.current.getFovSceneRect());
+  const handleSetBeaconCount = (count: number) => {
+    const clamped = Math.max(1, Math.min(5, Math.round(count)));
+    setBeaconCount(clamped);
+    targetEngineRef.current.setBeaconCount(clamped);
+    const updated = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    setTargets(updated);
+    if (!updated.some((t) => t.id === selectedPrimaryBeaconId)) {
+      setSelectedPrimaryBeaconId('B1');
     }
-    trackerRef.current.reset();
-    pidControllerRef.current.reset();
-    searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-  }
-};
+    const currentPrimary = updated.find((t) => t.id === selectedPrimaryBeaconId) || updated[0];
+    setPrimaryTarget({ ...currentPrimary });
+  };
 
-// Lines 923 to 935
-const handleSelectPrimaryBeacon = (id: string) => {
-  setSelectedPrimaryBeaconId(id);
-  setTargetPriority('click_to_select');
-  const target = targets.find((t) => t.id === id) || targetEngineRef.current.getTargets().find((t) => t.id === id);
-  if (target) {
-    cameraRef.current.pointAtSceneLocation(target.x, target.y);
+  const handleUpdateBeacon = (id: string, cfg: Partial<TargetConfig>) => {
+    targetEngineRef.current.updateBeacon(id, cfg);
+    const updated = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    setTargets(updated);
+    if (id === 'B1' || id === selectedPrimaryBeaconId) {
+      const primary = updated.find((t) => t.id === id) || updated[0];
+      setPrimaryTarget({ ...primary });
+    }
+  };
+
+  const handleSelectPrimaryBeacon = (id: string) => {
+    setSelectedPrimaryBeaconId(id);
+    setTargetPriority('click_to_select');
+    const updated = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    const target = updated.find((t) => t.id === id) || updated[0];
+    if (target) {
+      setPrimaryTarget({ ...target });
+    }
+  };
+
+  const handleUpdateTarget = (cfg: Partial<TargetConfig>) => {
+    if (cfg.motionPattern) {
+      targetEngineRef.current.setPrimaryTargetMotion(cfg.motionPattern);
+    }
+    if (cfg.shape) targetEngineRef.current.setPrimaryTargetShape(cfg.shape);
+    if (cfg.size) targetEngineRef.current.setPrimaryTargetSize(cfg.size);
+    if (cfg.speed) targetEngineRef.current.setPrimaryTargetSpeed(cfg.speed);
+    const updatedTargets = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    const primary = updatedTargets[0];
+    setPrimaryTarget({ ...primary });
+    setTargets(updatedTargets);
+  };
+
+  const handleSetCustomPath = (points: Array<{ x: number; y: number }>) => {
+    targetEngineRef.current.setCustomPath(points);
+    setIsCustomPathActive(true);
+    const updatedTargets = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    const primary = updatedTargets[0];
+    setPrimaryTarget({ ...primary });
+    setTargets(updatedTargets);
+  };
+
+  const handleClearCustomPath = () => {
+    targetEngineRef.current.clearCustomPath();
+    setIsCustomPathActive(false);
+    const updatedTargets = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    const primary = updatedTargets[0];
+    setPrimaryTarget({ ...primary });
+    setTargets(updatedTargets);
+  };
+
+  const handleSetTargetPos = (x: number, y: number) => {
+    targetEngineRef.current.setPrimaryTargetLocation(x, y);
+    const updatedTargets = targetEngineRef.current.getTargets().map((t) => ({ ...t }));
+    const primary = updatedTargets[0];
+    setPrimaryTarget({ ...primary });
+    setTargets(updatedTargets);
+    // Align camera gimbal directly onto the new target position so it enters FOV and locks on
+    cameraRef.current.pointAtSceneLocation(x, y);
     setCameraCenter(cameraRef.current.getSceneCenter());
     setFovRect(cameraRef.current.getFovSceneRect());
     trackerRef.current.reset();
     pidControllerRef.current.reset();
     searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-  }
-};
-
-  // Lines 937 to 956
-const handleUpdateTarget = (cfg: Partial<TargetConfig>) => {
-  if (cfg.motionPattern) {
-    targetEngineRef.current.setPrimaryTargetMotion(cfg.motionPattern);
-  }
-  if (cfg.shape) targetEngineRef.current.setPrimaryTargetShape(cfg.shape);
-  if (cfg.size) targetEngineRef.current.setPrimaryTargetSize(cfg.size);
-  if (cfg.speed) targetEngineRef.current.setPrimaryTargetSpeed(cfg.speed);
-  const updatedTargets = [...targetEngineRef.current.getTargets()];
-  const primary = updatedTargets[0];
-  setPrimaryTarget({ ...primary });
-  setTargets(updatedTargets);
-  if (primary) {
-    cameraRef.current.pointAtSceneLocation(primary.x, primary.y);
-    setCameraCenter(cameraRef.current.getSceneCenter());
-    setFovRect(cameraRef.current.getFovSceneRect());
-  }
-  trackerRef.current.reset();
-  pidControllerRef.current.reset();
-  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-};
-
-  // Lines 958 to 973
-const handleSetCustomPath = (points: Array<{ x: number; y: number }>) => {
-  targetEngineRef.current.setCustomPath(points);
-  setIsCustomPathActive(true);
-  const updatedTargets = [...targetEngineRef.current.getTargets()];
-  const primary = updatedTargets[0];
-  setPrimaryTarget({ ...primary });
-  setTargets(updatedTargets);
-  if (primary) {
-    cameraRef.current.pointAtSceneLocation(primary.x, primary.y);
-    setCameraCenter(cameraRef.current.getSceneCenter());
-    setFovRect(cameraRef.current.getFovSceneRect());
-  }
-  trackerRef.current.reset();
-  pidControllerRef.current.reset();
-  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-};
-
-// Lines 975 to 990
-const handleClearCustomPath = () => {
-  targetEngineRef.current.clearCustomPath();
-  setIsCustomPathActive(false);
-  const updatedTargets = [...targetEngineRef.current.getTargets()];
-  const primary = updatedTargets[0];
-  setPrimaryTarget({ ...primary });
-  setTargets(updatedTargets);
-  if (primary) {
-    cameraRef.current.pointAtSceneLocation(primary.x, primary.y);
-    setCameraCenter(cameraRef.current.getSceneCenter());
-    setFovRect(cameraRef.current.getFovSceneRect());
-  }
-  trackerRef.current.reset();
-  pidControllerRef.current.reset();
-  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-};
-
-  // Lines 992 to 1005
-const handleSetTargetPos = (x: number, y: number) => {
-  targetEngineRef.current.setPrimaryTargetLocation(x, y);
-  const updatedTargets = [...targetEngineRef.current.getTargets()];
-  const primary = updatedTargets[0];
-  setPrimaryTarget({ ...primary });
-  setTargets(updatedTargets);
-  // Align camera gimbal directly onto the new target position so it enters FOV and locks on
-  cameraRef.current.pointAtSceneLocation(x, y);
-  setCameraCenter(cameraRef.current.getSceneCenter());
-  setFovRect(cameraRef.current.getFovSceneRect());
-  trackerRef.current.reset();
-  pidControllerRef.current.reset();
-  searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
-};
+  };
 
   const handleToggleMultiTarget = () => {
     const nextVal = !isMultiTarget;
