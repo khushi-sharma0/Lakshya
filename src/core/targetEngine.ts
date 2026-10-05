@@ -51,21 +51,21 @@ export class TargetEngine {
     const cy = this.sceneHeight / 2;
 
     // Default: exactly 1 beacon (B1)
-    this.targets = [
-      {
-        id: 'B1',
-        shape: 'square',
-        size: 10,
-        x: cx - 40,
-        y: cy - 30,
-        vx: 45,
-        vy: 30,
-        intensity: 1.0,
-        color: BEACON_DEFAULT_COLORS[0],
-        motionPattern: 'straight_line',
-        speed: 60,
-      },
-    ];
+    const defaultB1: TargetConfig = {
+      id: 'B1',
+      shape: 'square',
+      size: 10,
+      x: cx - 40,
+      y: cy - 30,
+      vx: 0,
+      vy: 0,
+      intensity: 1.0,
+      color: BEACON_DEFAULT_COLORS[0],
+      motionPattern: 'circular',
+      speed: 60,
+    };
+    this.targets = [defaultB1];
+    this.initBeaconMotion(defaultB1);
   }
 
   public setBeaconCount(count: number) {

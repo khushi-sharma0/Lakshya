@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { CameraConfig, DisturbancesConfig, PidConfig, TargetConfig, DetectionEngine, TargetPrioritization } from '../types';
-import { Sliders, Camera, Wind, Activity, Target, Cpu, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
+import { Camera, Wind, Activity, Target, Cpu, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ControlPanelsProps {
   cameraConfig: CameraConfig;
@@ -228,8 +228,8 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
     detection: true,
     sensor: true,
     target: true,
-    disturbances: false,
-    pid: false,
+    disturbances: true,
+    pid: true,
   });
 
   const toggle = (sec: string) => setOpenSections((p) => ({ ...p, [sec]: !p[sec] }));
@@ -408,7 +408,7 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
                     { value: 'straight_line', label: 'Straight' },
                     { value: 'circular', label: 'Circle' },
                     { value: 'figure_eight', label: 'Fig-8' },
-                    { value: 'maneuvering', label: 'Random' },
+                    { value: 'random', label: 'Random' },
                   ]}
                 />
               </PropRow>
@@ -429,6 +429,36 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
                   ]}
                 />
               </PropRow>
+              <PropRow label="Size">
+                <Slider
+                  ariaLabel="Target size"
+                  value={editingBeacon.size || 10}
+                  min={5}
+                  max={20}
+                  step={1}
+                  unit=" px"
+                  onChange={(sz) =>
+                    onUpdateBeacon
+                      ? onUpdateBeacon(editingBeacon.id, { size: sz })
+                      : onUpdateTarget({ size: sz })
+                  }
+                />
+              </PropRow>
+              <PropRow label="Speed">
+                <Slider
+                  ariaLabel="Target speed"
+                  value={editingBeacon.speed || 60}
+                  min={10}
+                  max={150}
+                  step={5}
+                  unit=" px/s"
+                  onChange={(sp) =>
+                    onUpdateBeacon
+                      ? onUpdateBeacon(editingBeacon.id, { speed: sp })
+                      : onUpdateTarget({ speed: sp })
+                  }
+                />
+              </PropRow>
             </PropSection>
           </div>
         )}
@@ -444,44 +474,132 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
         />
         {openSections.disturbances && (
           <div className="py-1">
-            <PropRow label="Noise (Gaussian σ)">
-              <Slider
-                ariaLabel="Gaussian noise sigma"
-                value={disturbances.gaussianSigma}
-                min={0}
-                max={15}
-                step={1}
-                onChange={(gaussianSigma) => onUpdateDisturbances({ gaussianSigma, enableGaussian: gaussianSigma > 0 })}
-              />
+            <PropRow label="Gaussian noise σ">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={disturbances.enableGaussian}
+                  onChange={(e) => onUpdateDisturbances({ enableGaussian: e.target.checked })}
+                  className="accent-accent"
+                />
+                <Slider
+                  ariaLabel="Gaussian noise sigma"
+                  value={disturbances.gaussianSigma}
+                  min={0}
+                  max={15}
+                  step={1}
+                  onChange={(gaussianSigma) => onUpdateDisturbances({ gaussianSigma, enableGaussian: gaussianSigma > 0 })}
+                />
+              </div>
             </PropRow>
+
             <PropRow label="Salt & Pepper">
-              <Slider
-                ariaLabel="Salt and pepper density"
-                value={Math.round(disturbances.saltPepperDensity * 100)}
-                min={0}
-                max={30}
-                step={1}
-                unit="%"
-                onChange={(val) =>
-                  onUpdateDisturbances({
-                    saltPepperDensity: val / 100,
-                    enableSaltPepper: val > 0,
-                  })
-                }
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={disturbances.enableSaltPepper}
+                  onChange={(e) => onUpdateDisturbances({ enableSaltPepper: e.target.checked })}
+                  className="accent-accent"
+                />
+                <Slider
+                  ariaLabel="Salt and pepper density"
+                  value={Math.round(disturbances.saltPepperDensity * 100)}
+                  min={0}
+                  max={30}
+                  step={1}
+                  unit="%"
+                  onChange={(val) =>
+                    onUpdateDisturbances({
+                      saltPepperDensity: val / 100,
+                      enableSaltPepper: val > 0,
+                    })
+                  }
+                />
+              </div>
             </PropRow>
-            <PropRow label="Atmosphere">
+
+            <PropRow label="Poisson shot noise">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={disturbances.enablePoisson}
+                  onChange={(e) => onUpdateDisturbances({ enablePoisson: e.target.checked })}
+                  className="accent-accent"
+                />
+                <Slider
+                  ariaLabel="Poisson shot noise intensity"
+                  value={disturbances.poissonIntensity}
+                  min={0}
+                  max={1.0}
+                  step={0.1}
+                  onChange={(poissonIntensity) => onUpdateDisturbances({ poissonIntensity, enablePoisson: poissonIntensity > 0 })}
+                />
+              </div>
+            </PropRow>
+
+            <PropRow label="Housing jitter">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={disturbances.enableJitter}
+                  onChange={(e) => onUpdateDisturbances({ enableJitter: e.target.checked })}
+                  className="accent-accent"
+                />
+                <Slider
+                  ariaLabel="Housing jitter amplitude"
+                  value={disturbances.jitterAmplitudePx}
+                  min={0}
+                  max={20}
+                  step={1}
+                  unit=" px"
+                  onChange={(jitterAmplitudePx) => onUpdateDisturbances({ jitterAmplitudePx, enableJitter: jitterAmplitudePx > 0 })}
+                />
+              </div>
+            </PropRow>
+
+            <PropRow label="Atmosphere preset">
               <Segmented
                 ariaLabel="Atmospheric preset"
                 value={disturbances.atmosphericPreset}
                 onChange={(preset) => onUpdateDisturbances({ atmosphericPreset: preset as any })}
                 options={[
                   { value: 'clear', label: 'Clear' },
-                  { value: 'light_haze', label: 'Haze' },
-                  { value: 'moderate_fog', label: 'Fog' },
-                  { value: 'heavy_turbulence', label: 'Turb' },
+                  { value: 'haze', label: 'Haze' },
+                  { value: 'fog', label: 'Fog' },
+                  { value: 'rain', label: 'Rain' },
                 ]}
               />
+            </PropRow>
+
+            <PropRow label="Attenuation">
+              <Slider
+                ariaLabel="Atmospheric attenuation intensity"
+                value={disturbances.atmosphericIntensity}
+                min={0.0}
+                max={1.0}
+                step={0.1}
+                onChange={(atmosphericIntensity) => onUpdateDisturbances({ atmosphericIntensity })}
+              />
+            </PropRow>
+
+            <PropRow label="Platform motion">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={disturbances.enablePlatformMotion}
+                  onChange={(e) => onUpdateDisturbances({ enablePlatformMotion: e.target.checked })}
+                  className="accent-accent"
+                />
+                <Slider
+                  ariaLabel="Platform motion amplitude"
+                  value={disturbances.platformAmplitudePx}
+                  min={0}
+                  max={20}
+                  step={1}
+                  unit=" px"
+                  onChange={(platformAmplitudePx) => onUpdateDisturbances({ platformAmplitudePx, enablePlatformMotion: platformAmplitudePx > 0 })}
+                />
+              </div>
             </PropRow>
           </div>
         )}
@@ -491,7 +609,7 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
       <div>
         <SectionHeader
           icon={Activity}
-          title="Gimbal PID"
+          title="Gimbal PID & Loop"
           isOpen={openSections.pid}
           onToggle={() => toggle('pid')}
         />
@@ -535,6 +653,28 @@ export const ControlPanels: React.FC<ControlPanelsProps> = ({
                 max={2.0}
                 step={0.1}
                 onChange={(kff) => onUpdatePid({ kff })}
+              />
+            </PropRow>
+            <PropRow label="Servo lag">
+              <Slider
+                ariaLabel="Servo lag delay"
+                value={pidConfig.servoLagMs}
+                min={0}
+                max={100}
+                step={5}
+                unit=" ms"
+                onChange={(servoLagMs) => onUpdatePid({ servoLagMs })}
+              />
+            </PropRow>
+            <PropRow label="Backlash">
+              <Slider
+                ariaLabel="Backlash deadband"
+                value={pidConfig.backlashPx}
+                min={0}
+                max={5}
+                step={0.5}
+                unit=" px"
+                onChange={(backlashPx) => onUpdatePid({ backlashPx })}
               />
             </PropRow>
           </div>
