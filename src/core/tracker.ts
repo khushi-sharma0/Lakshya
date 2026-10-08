@@ -201,9 +201,15 @@ export class SingleBeaconTrack {
     }
   }
 
-  public toBeaconTrack(camCenterX: number = 320, camCenterY: number = 240): BeaconTrack {
-    const errorFromBoresight = Math.hypot(this.x - camCenterX, this.y - camCenterY);
-    const inFov = this.x >= 0 && this.x <= camCenterX * 2 && this.y >= 0 && this.y <= camCenterY * 2;
+  public toBeaconTrack(camCenterX: number = 320, camCenterY: number = 240, actualInFov?: boolean): BeaconTrack {
+    const isLocked = this.state === 'TRACKING' || this.state === 'ACQUIRED';
+    const errorFromBoresight = isLocked || this.lastDetection
+      ? Math.hypot(this.x - camCenterX, this.y - camCenterY)
+      : 0;
+
+    const inFov = actualInFov !== undefined
+      ? actualInFov
+      : (isLocked || this.state === 'REACQUIRING') && (this.x >= 0 && this.x <= camCenterX * 2 && this.y >= 0 && this.y <= camCenterY * 2);
 
     let trackState: 'TRACKING' | 'COASTING' | 'LOST' | 'SEARCHING' = 'SEARCHING';
     if (this.state === 'TRACKING' || this.state === 'ACQUIRED') {
@@ -448,8 +454,15 @@ export class TrackingModule {
       this.lastReacquisitionDurationSec = primaryTr.lastReacquisitionDurationSec;
     }
 
-    const allTracks = activeTracksList.map((t) => t.toBeaconTrack(camCenterX, camCenterY));
-    const primaryTrack = (primaryTr || activeTracksList[0]).toBeaconTrack(camCenterX, camCenterY);
+    const allTracks = activeTracksList.map((t) => {
+      const isTrLocked = t.state === 'TRACKING' || t.state === 'ACQUIRED';
+      const inFov = isTrLocked || (t.lastDetection !== null && t.consecutiveMisses === 0);
+      return t.toBeaconTrack(camCenterX, camCenterY, inFov);
+    });
+    const primaryObj = primaryTr || activeTracksList[0];
+    const primaryIsLocked = primaryObj ? (primaryObj.state === 'TRACKING' || primaryObj.state === 'ACQUIRED') : false;
+    const primaryInFov = primaryIsLocked || (primaryObj && primaryObj.lastDetection !== null && primaryObj.consecutiveMisses === 0);
+    const primaryTrack = primaryObj ? primaryObj.toBeaconTrack(camCenterX, camCenterY, primaryInFov) : activeTracksList[0].toBeaconTrack(camCenterX, camCenterY);
 
     return { primaryTrack, allTracks };
   }

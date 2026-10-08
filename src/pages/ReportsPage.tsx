@@ -197,7 +197,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
-  }, [displayLogs, selectedRunId]);
+  }, [displayLogs, displayLogs.length, metrics, selectedRunId]);
 
   // Render Servo Dynamics Chart
   useEffect(() => {
@@ -262,7 +262,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
-  }, [displayLogs, selectedRunId]);
+  }, [displayLogs, displayLogs.length, metrics, selectedRunId]);
 
   return (
     <div className="space-y-4">
