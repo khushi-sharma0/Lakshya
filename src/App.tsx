@@ -46,7 +46,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>('simulation');
   const [isDark, setIsDark] = useState<boolean>(true);
   const [isRunning, setIsRunning] = useState<boolean>(true);
-  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState<boolean>(true);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const [helpKind, setHelpKind] = useState<HelpDialogKind | null>(null);
 
@@ -433,7 +433,7 @@ export default function App() {
         maxBlobSize: 400,
       };
 
-      if (currentPage === 'simulation') {
+      if (currentPage === 'simulation' || currentPage === 'reports') {
         if (isRunning) {
           // 1. Step target engine
           targetEngineRef.current.update(dt);
@@ -546,7 +546,7 @@ export default function App() {
               const primaryState = mapBeaconStateToTrackingState(primaryTrack.state);
               const isLocked = primaryState === 'TRACKING' || primaryState === 'ACQUIRED' || primaryTrack.state === 'TRACKING' || primaryTrack.state === 'COASTING';
 
-              // 5. Gimbal Control: Closed-loop PID vs Autonomous Search Scan
+              // 5. Gimbal Control: Closed-loop PID vs Autonomous Coarse Search Scan
               let panCmd = 0;
               let tiltCmd = 0;
 
@@ -568,14 +568,28 @@ export default function App() {
                   lastWasLockedRef.current = false;
                   searchEngineRef.current.reset(cameraRef.current.config.panPosDeg, cameraRef.current.config.tiltPosDeg);
                 }
-                const searchCmd = searchEngineRef.current.update(
-                  dt,
-                  currentCamConfig,
-                  cameraRef.current.config.panPosDeg,
-                  cameraRef.current.config.tiltPosDeg
-                );
-                panCmd = searchCmd.panCmdDegS;
-                tiltCmd = searchCmd.tiltCmdDegS;
+                const primaryTargetObj = currentTargets.find((t) => t.id === currentSelectedPrimaryBeaconId) || currentTargets[0];
+                const pxPerDeg = cameraRef.current.getPxPerDeg();
+                const targetPanDeg = (primaryTargetObj.x - currentCamConfig.screenWidth / 2) / pxPerDeg;
+                const targetTiltDeg = (primaryTargetObj.y - currentCamConfig.screenHeight / 2) / pxPerDeg;
+                const dPan = targetPanDeg - cameraRef.current.config.panPosDeg;
+                const dTilt = targetTiltDeg - cameraRef.current.config.tiltPosDeg;
+                const distDeg = Math.hypot(dPan, dTilt);
+                const maxSpeed = Math.min(currentCamConfig.maxPanSpeedDegS, currentCamConfig.maxTiltSpeedDegS);
+
+                if (distDeg > 0.05) {
+                  panCmd = (dPan / distDeg) * Math.min(maxSpeed, distDeg * 3.5);
+                  tiltCmd = (dTilt / distDeg) * Math.min(maxSpeed, distDeg * 3.5);
+                } else {
+                  const searchCmd = searchEngineRef.current.update(
+                    dt,
+                    currentCamConfig,
+                    cameraRef.current.config.panPosDeg,
+                    cameraRef.current.config.tiltPosDeg
+                  );
+                  panCmd = searchCmd.panCmdDegS;
+                  tiltCmd = searchCmd.tiltCmdDegS;
+                }
               }
 
               cameraRef.current.setPanTiltCommand(panCmd, tiltCmd, simTimeMs);
